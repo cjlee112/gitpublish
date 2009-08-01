@@ -41,10 +41,10 @@ moinReformatters = [
     (re.compile(r"\[\[[A-Z]+[a-z0-9]+[A-Z][A-Za-z0-9]+\|.+?\]\]"),
      rest_internal_link),
     (re.compile(r"\[\[[A-Z]+[a-z0-9]+[A-Z][A-Za-z0-9]+\]\]"),
-     lambda s: ':ref:`%s`' % s[2:-2]),
+     lambda s: ':doc:`%s`' % s[2:-2]),
     (re.compile(r"\[\[.+?\]]"), rest_url),
-    (re.compile(r" [A-Z]+[a-z0-9]+[A-Z][A-Za-z0-9]+\b"),
-     lambda s: ' :doc:`%s`' % s[1:]),
+    (re.compile(r"\b[A-Z]+[a-z0-9]+[A-Z][A-Za-z0-9]+[^>A-Za-z0-9]"),
+     lambda s: ' :doc:`%s`%s' % (s[:-1],s[-1])),
 ]
 
 def reformat_line(line):
@@ -162,8 +162,7 @@ def copy_moin_current(wikiDir, destDir, filterfunc=None):
     for pageCurrent in revFiles:
         ifile = file(pageCurrent)
         try:
-            line = ifile.read()
-            line = line.strip()
+            line = ifile.read().strip()
         finally:
             ifile.close()
         pageRev = os.path.join(os.path.dirname(pageCurrent), 'revisions', line)
