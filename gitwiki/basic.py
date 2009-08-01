@@ -30,7 +30,7 @@ def rest_internal_link(s):
     'format text for an internal link'
     link,text = s[2:-2].split('|')
     #anonymousLinks.append(link)
-    return ':ref:`%s <%s>`' % (text,link)
+    return ':doc:`%s <%s>`' % (text,link)
 
 moinReformatters = [
     (re.compile(r"\$\$.+?\$\$"), lambda s: ":math:`%s`" % s[2:-2]),
@@ -43,9 +43,14 @@ moinReformatters = [
     (re.compile(r"\[\[[A-Z]+[a-z0-9]+[A-Z][A-Za-z0-9]+\]\]"),
      lambda s: ':ref:`%s`' % s[2:-2]),
     (re.compile(r"\[\[.+?\]]"), rest_url),
-    (re.compile(r"\b[A-Z]+[a-z0-9]+[A-Z][A-Za-z0-9]+\b"),
-     lambda s: ':ref:`%s`' % s),
+    (re.compile(r" [A-Z]+[a-z0-9]+[A-Z][A-Za-z0-9]+\b"),
+     lambda s: ' :doc:`%s`' % s[1:]),
 ]
+
+def reformat_line(line):
+    for pattern,rep in moinReformatters: # apply inline substitutions
+        line = re_replace(pattern, rep, line)
+    return line
 
 def convert_moin_to_rest(moinFile, outfile):
     'converts moin markup to restructured text, but very minimal'
@@ -54,8 +59,13 @@ def convert_moin_to_rest(moinFile, outfile):
     firstLevel = None
     it = iter(moinFile)
     for line in it:
-        for pattern,rep in moinReformatters: # apply inline substitutions
-            line = re_replace(pattern, rep, line)
+        n = len(line)
+        lineStripped = line.lstrip()
+        try:
+            firstChar = lineStripped[0]
+        except IndexError:
+            firstChar = ' '
+        firstIndent = n - len(lineStripped)
         if line.startswith('='): # reformat section heading
             level = len(line.split()[0]) - 1
             if firstLevel is None:
@@ -68,17 +78,16 @@ def convert_moin_to_rest(moinFile, outfile):
             print >>outfile, line
             print >>outfile, headers[level] * len(line)
             print >>outfile
-        elif line.strip().startswith('*'): # item list
-            indent = line.find('*')
-            if indent > indentList[-1]:
-                indentList.append(indent)
-            else:
-                while len(indentList)>1 and indent < indentList[-1]:
-                    indentList.pop()
-            nspace = 2 * len(indentList)
-            newline = textwrap.fill(line.strip(),
-                                    initial_indent=' ' * (nspace - 2),
-                                    subsequent_indent=' ' * nspace)
+        elif firstChar in '*123456789': # item list
+            if firstChar != '*':
+                firstChar = '#.'
+            elif firstIndent > 0: # adjust for extra space added before *
+                firstIndent -= 1
+            line = line.lstrip(' *0123456789.') # find beginning of text
+            line = reformat_line(line)
+            newline = textwrap.fill(firstChar + ' ' + line.strip(),
+                                    initial_indent=' ' * firstIndent,
+                    subsequent_indent=' ' * (firstIndent + len(firstChar) + 1))
             print >>outfile, '\n' + newline            
         else:
             codePos = line.find('{{{')
@@ -88,6 +97,7 @@ def convert_moin_to_rest(moinFile, outfile):
             n = len(line)
             line = line.lstrip()
             nspace = n - len(line)
+            line = reformat_line(line)
             newline = textwrap.fill(line.strip(),
                                     initial_indent=' ' * nspace,
                                     subsequent_indent=' ' * nspace)
@@ -106,10 +116,8 @@ def convert_moin_to_rest(moinFile, outfile):
             print >>outfile, '__ ' + link + '_'
         del anonymousLinks[:] # empty the list
             
-            
 
-def commit_moin_revision(pageRev, destDir):
-    'commit a specified revision to git repository in destDir'
+def convert_file(pageRev, destDir):
     t = os.path.split(pageRev)
     version = int(t[1])
     filename = os.path.basename(os.path.dirname(t[0]))
@@ -124,6 +132,11 @@ def commit_moin_revision(pageRev, destDir):
             ofile.close()
     finally:
         ifile.close()
+    return destFile, filename, version
+
+def commit_moin_revision(pageRev, destDir):
+    'commit a specified revision to git repository in destDir'
+    destFile, filename, version = convert_file(pageRev, destDir)
     cmd = ['git', 'add', destFile]
     subprocess.call(cmd)
     revTime = time.ctime(os.stat(pageRev).st_mtime)
@@ -140,4 +153,18 @@ def commit_moin_by_time(wikiDir, destDir, filterfunc=None):
     l.sort()
     for t in l:
         commit_moin_revision(t[1], destDir)
-        
+
+def copy_moin_current(wikiDir, destDir, filterfunc=None):
+    'copy the latest versions of all pages in wikiDir to destDir'
+    revFiles = glob.glob(wikiDir + '/*/current')
+    if filterfunc:
+        revFiles = filter(filterfunc, revFiles)
+    for pageCurrent in revFiles:
+        ifile = file(pageCurrent)
+        try:
+            line = ifile.read()
+            line = line.strip()
+        finally:
+            ifile.close()
+        pageRev = os.path.join(os.path.dirname(pageCurrent), 'revisions', line)
+        convert_file(pageRev, destDir)
