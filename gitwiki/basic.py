@@ -1,6 +1,35 @@
 
 import os, glob, shutil, subprocess, time, re, textwrap
+try:
+    import opml
+except ImportError:
+    pass
 
+
+def write_opml_to_rest(opmlList, restFile, level=0):
+    'recursive reST writer processes one layer of OPML'
+    for o in opmlList:
+        try:
+            s = '* *' + o.text + '*'
+        except AttributeError:
+            s = '* '
+        try:
+            s += ': ' + o.Comment
+        except AttributeError:
+            pass
+        output = textwrap.fill(s, initial_indent = ' ' * level,
+                               subsequent_indent = '  ' + (' ' * level))
+        print >> restFile, output + '\n'
+        if len(o) > 0:
+            write_opml_to_rest(o, restFile, level + 1)
+
+def convert_opml_to_rest(opmlPath, restFile):
+    'write reST for an OPML outline'
+    opmlData = opml.parse(opmlPath)
+    print >>restFile, '=' * len(opmlData.title)
+    print >>restFile, opmlData.title
+    print >>restFile, ('=' * len(opmlData.title)) + '\n'
+    write_opml_to_rest(opmlData, restFile)
 
 def re_replace(pattern, formatter, line):
     hits = [m for m in pattern.finditer(line)]
