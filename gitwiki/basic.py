@@ -1,5 +1,5 @@
 
-import os, glob, shutil, subprocess, time, re, textwrap
+import os, glob, shutil, subprocess, time, re, textwrap, optparse, sys
 try:
     import opml
 except ImportError:
@@ -64,6 +64,8 @@ a basic reST format.  It follows a few simple rules:
                 subtitle = line[nchar + len(headerMark):]
                 print >>restFile, '\n*' + subtitle.strip() + '*\n'
             else: # treat as section heading
+                if line.endswith(headerMark): # remove terminal headerMark
+                    line = line[:-len(headerMark)]
                 print >>restFile, line + '\n' + ('-' * len(line)) + '\n'
         else: # treat as regular paragraph: apply textwrap
             print >>restFile, textwrap.fill(line) + '\n'
@@ -233,3 +235,26 @@ def copy_moin_current(wikiDir, destDir, filterfunc=None):
             ifile.close()
         pageRev = os.path.join(os.path.dirname(pageCurrent), 'revisions', line)
         convert_file(pageRev, destDir)
+
+
+def option_parser():
+    parser = optparse.OptionParser()
+
+    parser.add_option(
+        '--simpletext', action="store", type='string',
+        dest="simpletext", 
+        help="simpletext file to convert"
+    )
+
+    return parser
+
+if __name__ == '__main__':
+    parser = option_parser()
+    options, args = parser.parse_args()
+    if options.simpletext:
+        textFile = file(options.simpletext)
+        try:
+            simpletext_to_rest(textFile, sys.stdout)
+        finally:
+            textFile.close()
+            
