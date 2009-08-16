@@ -36,6 +36,8 @@ def simpletext_to_rest(textFile, restFile, headerMark=':', headerMax=40):
 processing document, i.e. it applies text-wrapping to produce
 a basic reST format.  It follows a few simple rules:
 
+* lines starting with '*' are treated as list items.
+
 * lines that contain a colon (or any headerMark you specify)
   are treated as section headers.
 
@@ -49,7 +51,10 @@ a basic reST format.  It follows a few simple rules:
     for line in textFile:
         line = line.strip()
         nchar = line.find(headerMark)
-        if nchar < headerMax and nchar > 0 : # treat as title
+        if line.startswith('*'): # treat as list item
+            print >>restFile, textwrap.fill(line, subsequent_indent='  ') \
+                  + '\n'
+        elif nchar < headerMax and nchar > 0 : # treat as title
             if firstHeader:
                 firstHeader = False
                 title = line[:nchar]
