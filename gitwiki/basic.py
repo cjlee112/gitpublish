@@ -31,6 +31,19 @@ def convert_opml_to_rest(opmlPath, restFile):
     print >>restFile, ('=' * len(opmlData.title)) + '\n'
     write_opml_to_rest(opmlData, restFile)
 
+def convert_opml_files(opmlfiles):
+    for filename in opmlfiles:
+        if filename.endswith('.opml'):
+            restFilename = filename[:-4] + 'rst'
+        else:
+            restFilename = filename + '.rst'
+        outfile = file(restFilename, 'w')
+        try:
+            convert_opml_to_rest(filename, outfile)
+        finally:
+            outfile.close()
+            
+
 def simpletext_to_rest(textFile, restFile, headerMark=':', headerMax=40):
     """Trivial reformatter suitable for text copied from a word
 processing document, i.e. it applies text-wrapping to produce
@@ -246,6 +259,12 @@ def option_parser():
         help="simpletext file to convert"
     )
 
+    parser.add_option(
+        '--opmlfiles', action="store_true", dest="opmlfiles",
+        default=False, 
+        help="runs the performance tests (not implemented)"
+    )
+
     return parser
 
 if __name__ == '__main__':
@@ -257,4 +276,7 @@ if __name__ == '__main__':
             simpletext_to_rest(textFile, sys.stdout)
         finally:
             textFile.close()
+    elif options.opmlfiles:
+        convert_opml_files(args)
+
             
