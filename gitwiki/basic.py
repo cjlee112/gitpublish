@@ -31,6 +31,38 @@ def convert_opml_to_rest(opmlPath, restFile):
     print >>restFile, ('=' * len(opmlData.title)) + '\n'
     write_opml_to_rest(opmlData, restFile)
 
+def simpletext_to_rest(textFile, restFile, headerMark=':', headerMax=40):
+    """Trivial reformatter suitable for text copied from a word
+processing document, i.e. it applies text-wrapping to produce
+a basic reST format.  It follows a few simple rules:
+
+* lines that contain a colon (or any headerMark you specify)
+  are treated as section headers.
+
+* the first section header is treated as the Document Title, up to
+  the colon (or headerMark).
+
+* other lines are treated as paragraphs, and are line-wrapped, with
+  an extra blank line inserted between paragraphs.
+  """
+    firstHeader = True
+    for line in textFile:
+        line = line.strip()
+        nchar = line.find(headerMark)
+        if nchar < headerMax and nchar > 0 : # treat as title
+            if firstHeader:
+                firstHeader = False
+                title = line[:nchar]
+                print >>restFile, '=' * len(title)
+                print >>restFile, title
+                print >>restFile, '=' * len(title)
+                subtitle = line[nchar + len(headerMark):]
+                print >>restFile, '\n*' + subtitle.strip() + '*\n'
+            else: # treat as section heading
+                print >>restFile, line + '\n' + ('-' * len(line)) + '\n'
+        else: # treat as regular paragraph: apply textwrap
+            print >>restFile, textwrap.fill(line) + '\n'
+
 def re_replace(pattern, formatter, line):
     hits = [m for m in pattern.finditer(line)]
     if len(hits) == 0:
