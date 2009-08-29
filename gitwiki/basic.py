@@ -6,15 +6,21 @@ except ImportError:
     pass
 
 
-def write_opml_to_rest(opmlList, restFile, level=0):
+def write_opml_to_rest(opmlList, restFile, level=0, commentAttr='Comment'):
     'recursive reST writer processes one layer of OPML'
     for o in opmlList:
         try:
-            s = '* *' + o.text + '*'
+            mytext = o.text
+            if mytext.endswith('.') and not mytext.endswith('...') \
+                   and hasattr(o, commentAttr) and getattr(o, commentAttr):
+                mytext = mytext[:-1]  # trim terminal period
+            s = '* *' + mytext + '*'
         except AttributeError:
             s = '* '
         try:
-            s += ': ' + o.Comment
+            mytext = getattr(o, commentAttr)
+            if mytext:
+                s += ': ' + mytext
         except AttributeError:
             pass
         output = textwrap.fill(s, initial_indent = ' ' * level,
@@ -23,15 +29,15 @@ def write_opml_to_rest(opmlList, restFile, level=0):
         if len(o) > 0:
             write_opml_to_rest(o, restFile, level + 1)
 
-def convert_opml_to_rest(opmlPath, restFile):
+def convert_opml_to_rest(opmlPath, restFile, **kwargs):
     'write reST for an OPML outline'
     opmlData = opml.parse(opmlPath)
     print >>restFile, '=' * len(opmlData.title)
     print >>restFile, opmlData.title
     print >>restFile, ('=' * len(opmlData.title)) + '\n'
-    write_opml_to_rest(opmlData, restFile)
+    write_opml_to_rest(opmlData, restFile, **kwargs)
 
-def convert_opml_files(opmlfiles):
+def convert_opml_files(opmlfiles, **kwargs):
     for filename in opmlfiles:
         if filename.endswith('.opml'):
             restFilename = filename[:-4] + 'rst'
@@ -39,7 +45,7 @@ def convert_opml_files(opmlfiles):
             restFilename = filename + '.rst'
         outfile = file(restFilename, 'w')
         try:
-            convert_opml_to_rest(filename, outfile)
+            convert_opml_to_rest(filename, outfile, **kwargs)
         finally:
             outfile.close()
             
