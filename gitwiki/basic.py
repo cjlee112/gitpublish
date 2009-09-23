@@ -1,6 +1,93 @@
 
-import os, glob, shutil, subprocess, time, re, textwrap
+import os, glob, shutil, subprocess, time, re, textwrap, optparse, sys
+try:
+    import opml
+except ImportError:
+    pass
 
+
+def write_opml_to_rest(opmlList, restFile, level=0, commentAttr='Comment'):
+    'recursive reST writer processes one layer of OPML'
+    for o in opmlList:
+        try:
+            mytext = o.text
+            if mytext.endswith('.') and not mytext.endswith('...') \
+                   and hasattr(o, commentAttr) and getattr(o, commentAttr):
+                mytext = mytext[:-1]  # trim terminal period
+            s = '* *' + mytext + '*'
+        except AttributeError:
+            s = '* '
+        try:
+            mytext = getattr(o, commentAttr)
+            if mytext:
+                s += ': ' + mytext
+        except AttributeError:
+            pass
+        output = textwrap.fill(s, initial_indent = ' ' * level,
+                               subsequent_indent = '  ' + (' ' * level))
+        print >> restFile, output + '\n'
+        if len(o) > 0:
+            write_opml_to_rest(o, restFile, level + 1)
+
+def convert_opml_to_rest(opmlPath, restFile, **kwargs):
+    'write reST for an OPML outline'
+    opmlData = opml.parse(opmlPath)
+    print >>restFile, '=' * len(opmlData.title)
+    print >>restFile, opmlData.title
+    print >>restFile, ('=' * len(opmlData.title)) + '\n'
+    write_opml_to_rest(opmlData, restFile, **kwargs)
+
+def convert_opml_files(opmlfiles, **kwargs):
+    for filename in opmlfiles:
+        if filename.endswith('.opml'):
+            restFilename = filename[:-4] + 'rst'
+        else:
+            restFilename = filename + '.rst'
+        outfile = file(restFilename, 'w')
+        try:
+            convert_opml_to_rest(filename, outfile, **kwargs)
+        finally:
+            outfile.close()
+            
+
+def simpletext_to_rest(textFile, restFile, headerMark=':', headerMax=40):
+    """Trivial reformatter suitable for text copied from a word
+processing document, i.e. it applies text-wrapping to produce
+a basic reST format.  It follows a few simple rules:
+
+* lines starting with '*' are treated as list items.
+
+* lines that contain a colon (or any headerMark you specify)
+  are treated as section headers.
+
+* the first section header is treated as the Document Title, up to
+  the colon (or headerMark).
+
+* other lines are treated as paragraphs, and are line-wrapped, with
+  an extra blank line inserted between paragraphs.
+  """
+    firstHeader = True
+    for line in textFile:
+        line = line.strip()
+        nchar = line.find(headerMark)
+        if line.startswith('*'): # treat as list item
+            print >>restFile, textwrap.fill(line, subsequent_indent='  ') \
+                  + '\n'
+        elif nchar < headerMax and nchar > 0 : # treat as title
+            if firstHeader:
+                firstHeader = False
+                title = line[:nchar]
+                print >>restFile, '=' * len(title)
+                print >>restFile, title
+                print >>restFile, '=' * len(title)
+                subtitle = line[nchar + len(headerMark):]
+                print >>restFile, '\n*' + subtitle.strip() + '*\n'
+            else: # treat as section heading
+                if line.endswith(headerMark): # remove terminal headerMark
+                    line = line[:-len(headerMark)]
+                print >>restFile, line + '\n' + ('-' * len(line)) + '\n'
+        else: # treat as regular paragraph: apply textwrap
+            print >>restFile, textwrap.fill(line) + '\n'
 
 def re_replace(pattern, formatter, line):
     hits = [m for m in pattern.finditer(line)]
@@ -30,7 +117,7 @@ def rest_internal_link(s):
     'format text for an internal link'
     link,text = s[2:-2].split('|')
     #anonymousLinks.append(link)
-    return ':ref:`%s <%s>`' % (text,link)
+    return ':doc:`%s <%s>`' % (text,link)
 
 moinReformatters = [
     (re.compile(r"\$\$.+?\$\$"), lambda s: ":math:`%s`" % s[2:-2]),
@@ -41,11 +128,16 @@ moinReformatters = [
     (re.compile(r"\[\[[A-Z]+[a-z0-9]+[A-Z][A-Za-z0-9]+\|.+?\]\]"),
      rest_internal_link),
     (re.compile(r"\[\[[A-Z]+[a-z0-9]+[A-Z][A-Za-z0-9]+\]\]"),
-     lambda s: ':ref:`%s`' % s[2:-2]),
+     lambda s: ':doc:`%s`' % s[2:-2]),
     (re.compile(r"\[\[.+?\]]"), rest_url),
-    (re.compile(r"\b[A-Z]+[a-z0-9]+[A-Z][A-Za-z0-9]+\b"),
-     lambda s: ':ref:`%s`' % s),
+    (re.compile(r"\b[A-Z]+[a-z0-9]+[A-Z][A-Za-z0-9]+[^>A-Za-z0-9]"),
+     lambda s: ' :doc:`%s`%s' % (s[:-1],s[-1])),
 ]
+
+def reformat_line(line):
+    for pattern,rep in moinReformatters: # apply inline substitutions
+        line = re_replace(pattern, rep, line)
+    return line
 
 def convert_moin_to_rest(moinFile, outfile):
     'converts moin markup to restructured text, but very minimal'
@@ -54,8 +146,13 @@ def convert_moin_to_rest(moinFile, outfile):
     firstLevel = None
     it = iter(moinFile)
     for line in it:
-        for pattern,rep in moinReformatters: # apply inline substitutions
-            line = re_replace(pattern, rep, line)
+        n = len(line)
+        lineStripped = line.lstrip()
+        try:
+            firstChar = lineStripped[0]
+        except IndexError:
+            firstChar = ' '
+        firstIndent = n - len(lineStripped)
         if line.startswith('='): # reformat section heading
             level = len(line.split()[0]) - 1
             if firstLevel is None:
@@ -68,17 +165,16 @@ def convert_moin_to_rest(moinFile, outfile):
             print >>outfile, line
             print >>outfile, headers[level] * len(line)
             print >>outfile
-        elif line.strip().startswith('*'): # item list
-            indent = line.find('*')
-            if indent > indentList[-1]:
-                indentList.append(indent)
-            else:
-                while len(indentList)>1 and indent < indentList[-1]:
-                    indentList.pop()
-            nspace = 2 * len(indentList)
-            newline = textwrap.fill(line.strip(),
-                                    initial_indent=' ' * (nspace - 2),
-                                    subsequent_indent=' ' * nspace)
+        elif firstChar in '*123456789': # item list
+            if firstChar != '*':
+                firstChar = '#.'
+            elif firstIndent > 0: # adjust for extra space added before *
+                firstIndent -= 1
+            line = line.lstrip(' *0123456789.') # find beginning of text
+            line = reformat_line(line)
+            newline = textwrap.fill(firstChar + ' ' + line.strip(),
+                                    initial_indent=' ' * firstIndent,
+                    subsequent_indent=' ' * (firstIndent + len(firstChar) + 1))
             print >>outfile, '\n' + newline            
         else:
             codePos = line.find('{{{')
@@ -88,6 +184,7 @@ def convert_moin_to_rest(moinFile, outfile):
             n = len(line)
             line = line.lstrip()
             nspace = n - len(line)
+            line = reformat_line(line)
             newline = textwrap.fill(line.strip(),
                                     initial_indent=' ' * nspace,
                                     subsequent_indent=' ' * nspace)
@@ -106,10 +203,8 @@ def convert_moin_to_rest(moinFile, outfile):
             print >>outfile, '__ ' + link + '_'
         del anonymousLinks[:] # empty the list
             
-            
 
-def commit_moin_revision(pageRev, destDir):
-    'commit a specified revision to git repository in destDir'
+def convert_file(pageRev, destDir):
     t = os.path.split(pageRev)
     version = int(t[1])
     filename = os.path.basename(os.path.dirname(t[0]))
@@ -124,6 +219,11 @@ def commit_moin_revision(pageRev, destDir):
             ofile.close()
     finally:
         ifile.close()
+    return destFile, filename, version
+
+def commit_moin_revision(pageRev, destDir):
+    'commit a specified revision to git repository in destDir'
+    destFile, filename, version = convert_file(pageRev, destDir)
     cmd = ['git', 'add', destFile]
     subprocess.call(cmd)
     revTime = time.ctime(os.stat(pageRev).st_mtime)
@@ -140,4 +240,95 @@ def commit_moin_by_time(wikiDir, destDir, filterfunc=None):
     l.sort()
     for t in l:
         commit_moin_revision(t[1], destDir)
-        
+
+def copy_moin_current(wikiDir, destDir, filterfunc=None):
+    'copy the latest versions of all pages in wikiDir to destDir'
+    revFiles = glob.glob(wikiDir + '/*/current')
+    if filterfunc:
+        revFiles = filter(filterfunc, revFiles)
+    for pageCurrent in revFiles:
+        ifile = file(pageCurrent)
+        try:
+            line = ifile.read().strip()
+        finally:
+            ifile.close()
+        pageRev = os.path.join(os.path.dirname(pageCurrent), 'revisions', line)
+        convert_file(pageRev, destDir)
+
+
+class WordPressBlog(object):
+    """
+    Basic usage: to publish a ReST file to wordpress:
+    >>> tab = basic.WordPressBlog('somewhere.wordpress.com',
+                                  'somebody', 'apassword')
+    >>> tab.post_rest('dollar_phone_plan.rst')
+    34
+
+    It returns the post_id of the new post, which you can access via:
+    http://somewhere.wordpress.com/?p=34
+    Note that the new post is created *unpublished* so you will only
+    be able to see it if you are logged in to your wordpress blog.
+    You can then publish it from the the WP admin interface.
+
+    """
+    def __init__(self, host, user, password, blog_id=0, path='/xmlrpc.php'):
+        import xmlrpclib
+        url = 'http://' + host + path
+        self.server = xmlrpclib.ServerProxy(url)
+        self.user = user
+        self.password = password
+        self.blog_id = blog_id
+
+    def new_post(self, title, content):
+        'post a new title + HTML to wordpress'
+        d = dict(title=title, description=content)
+        post_id = int(self.server.metaWeblog.newPost(self.blog_id,
+                                 self.user, self.password, d, 0))
+        return post_id
+
+    def post_rest(self, restFile):
+        'post a restructured text file to wordpress'
+        from docutils.core import publish_string
+        import rst2wp
+        from xml.etree.ElementTree import XML
+        ifile = file(restFile) # read our restructured text
+        rest = ifile.read()
+        ifile.close()
+        xhtml = publish_string(rest, writer_name='xml')
+        x = XML(xhtml) # parse the XML text
+        title = x.find('title').text #extract its title
+        writer = rst2wp.Writer()
+        html = publish_string(rest, writer=writer) # convert to wordpress
+        return self.new_post(title, html) # upload to wordpress
+
+
+def option_parser():
+    parser = optparse.OptionParser()
+
+    parser.add_option(
+        '--simpletext', action="store", type='string',
+        dest="simpletext", 
+        help="simpletext file to convert"
+    )
+
+    parser.add_option(
+        '--opmlfiles', action="store_true", dest="opmlfiles",
+        default=False, 
+        help="runs the performance tests (not implemented)"
+    )
+
+    return parser
+
+if __name__ == '__main__':
+    parser = option_parser()
+    options, args = parser.parse_args()
+    if options.simpletext:
+        textFile = file(options.simpletext)
+        try:
+            simpletext_to_rest(textFile, sys.stdout)
+        finally:
+            textFile.close()
+    elif options.opmlfiles:
+        convert_opml_files(args)
+
+            
