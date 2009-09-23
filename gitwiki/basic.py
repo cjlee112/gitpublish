@@ -256,6 +256,52 @@ def copy_moin_current(wikiDir, destDir, filterfunc=None):
         convert_file(pageRev, destDir)
 
 
+class WordPressBlog(object):
+    """
+    Basic usage: to publish a ReST file to wordpress:
+    >>> tab = basic.WordPressBlog('somewhere.wordpress.com',
+                                  'somebody', 'apassword')
+    >>> tab.post_rest('dollar_phone_plan.rst')
+    34
+
+    It returns the post_id of the new post, which you can access via:
+    http://somewhere.wordpress.com/?p=34
+    Note that the new post is created *unpublished* so you will only
+    be able to see it if you are logged in to your wordpress blog.
+    You can then publish it from the the WP admin interface.
+
+    """
+    def __init__(self, host, user, password, blog_id=0, path='/xmlrpc.php'):
+        import xmlrpclib
+        url = 'http://' + host + path
+        self.server = xmlrpclib.ServerProxy(url)
+        self.user = user
+        self.password = password
+        self.blog_id = blog_id
+
+    def new_post(self, title, content):
+        'post a new title + HTML to wordpress'
+        d = dict(title=title, description=content)
+        post_id = int(self.server.metaWeblog.newPost(self.blog_id,
+                                 self.user, self.password, d, 0))
+        return post_id
+
+    def post_rest(self, restFile):
+        'post a restructured text file to wordpress'
+        from docutils.core import publish_string
+        import rst2wp
+        from xml.etree.ElementTree import XML
+        ifile = file(restFile) # read our restructured text
+        rest = ifile.read()
+        ifile.close()
+        xhtml = publish_string(rest, writer_name='xml')
+        x = XML(xhtml) # parse the XML text
+        title = x.find('title').text #extract its title
+        writer = rst2wp.Writer()
+        html = publish_string(rest, writer=writer) # convert to wordpress
+        return self.new_post(title, html) # upload to wordpress
+
+
 def option_parser():
     parser = optparse.OptionParser()
 
