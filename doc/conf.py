@@ -13,6 +13,12 @@
 
 import sys, os
 
+# need to insert the source gitwiki directory if we want to access modules
+curr_dir = os.path.dirname( __file__ )
+gitwiki_root_dir = os.path.join( curr_dir, '..')
+sys.path.insert( 0, gitwiki_root_dir )
+
+
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
