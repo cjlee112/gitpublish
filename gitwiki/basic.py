@@ -279,12 +279,18 @@ class WordPressBlog(object):
         self.password = password
         self.blog_id = blog_id
 
-    def new_post(self, title, content):
+    def new_post(self, title, content, publish=0):
         'post a new title + HTML to wordpress'
         d = dict(title=title, description=content)
         post_id = int(self.server.metaWeblog.newPost(self.blog_id,
-                                 self.user, self.password, d, 0))
+                                 self.user, self.password, d, publish))
         return post_id
+
+    def new_page(self, title, content, publish=0):
+        d = dict(title=title, description=content)
+        page_id = int(self.server.wp.newPage(self.blog_id, self.user,
+                                             self.password, d, publish))
+        return page_id
 
     def post_rest(self, restFile):
         'post a restructured text file to wordpress'
