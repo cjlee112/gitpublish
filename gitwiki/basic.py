@@ -288,18 +288,23 @@ class WordPressBlog(object):
 
     def post_rest(self, restFile):
         'post a restructured text file to wordpress'
-        from docutils.core import publish_string
-        import rst2wp
-        from xml.etree.ElementTree import XML
-        ifile = file(restFile) # read our restructured text
-        rest = ifile.read()
-        ifile.close()
-        xhtml = publish_string(rest, writer_name='xml')
-        x = XML(xhtml) # parse the XML text
-        title = x.find('title').text #extract its title
-        writer = rst2wp.Writer()
-        html = publish_string(rest, writer=writer) # convert to wordpress
+        title,html = convert_rest_to_wp(restFile)
         return self.new_post(title, html) # upload to wordpress
+
+def convert_rest_to_wp(restFile):
+    'convert ReST to WP html using docutils, rst2wp'
+    from docutils.core import publish_string
+    import rst2wp
+    from xml.etree.ElementTree import XML
+    ifile = file(restFile) # read our restructured text
+    rest = ifile.read()
+    ifile.close()
+    xhtml = publish_string(rest, writer_name='xml')
+    x = XML(xhtml) # parse the XML text
+    title = x.find('title').text #extract its title
+    writer = rst2wp.Writer()
+    html = publish_string(rest, writer=writer) # convert to wordpress
+    return title,html
 
 
 def option_parser():
