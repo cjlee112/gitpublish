@@ -88,7 +88,17 @@ The Gitwiki Interface
 
 Note that just like ``git add``, this simply *marks* the file
 for addition to the remote.  This change won't actually be pushed
-to the remote until you tell it to (see below).
+to the remote until you tell it to (see below).  Specifically, it
+adds a mapping for the designated file ``bigdoc.rst`` to be
+mapped to the designated remote, in this case using a default
+mapping.  For WordPress, a *Post*.  Provide extra arguments to
+give a non-default mapping (e.g. a *Page*).  The default will
+obtain the title etc. from the restructured text document.
+Automatically adds the updated state of the remote mapping
+file to git (via ``git add``).
+
+* *commit* changes including remote mappings.  Just a proxy for
+  regular ``git commit``, which you can use equally well.
 
 * *remove* a local file from publication on a particular remote::
 
@@ -99,5 +109,112 @@ to the remote until you tell it to (see below).
     gitwiki push my_wordpress master
 
 
+The Gitwiki Plug-in API
+-----------------------
+
+My goal is to make it easy for anyone to add a new kind of remote
+by writing in "plug-in" code that conforms to a standard gitwiki API.
+A plug-in should be a python file named ``plugin/myname.py``
+(where *myname* is the remote protocol name)
+that implements the following classes:
 
 
+.. class:: Remote(address, *args, **kwargs)
+
+   Create an instance object that provides an interface to the
+   remote repository.
+
+   *address* is a string formatted according
+   to the expectations of the specific remote type.
+
+   *map* is a gitwiki map object that provides forward and backward
+   mappings of gitwiki documents to remote documents, stored
+   persistently.
+
+
+
+.. method:: Remote.new(doc, branchname, *args, **kwargs)
+
+   Save *doc* as a new document in the remote repository in
+   branch *branchname*, with optional arguments controlling
+   how it should be stored.  Returns the new document's 
+   unique ID in the remote repository.
+
+.. method:: Remote.list_branches()
+
+   Get a list of branches in the remote repository, as a list of
+   string branch names.  Returns *None* if the remote does not support
+   multiple branches.
+
+.. method:: Remote.get_branch(branchname)
+
+   Get a branch object for the specified branch name.
+
+.. method:: Remote.list_documents(*args, **kwargs)
+
+   Get a list of document IDs (as strings).
+
+.. method:: Remote.get_document(doc_id)
+
+   Get a document object for the specified document ID.
+
+.. method:: Remote.set_document(doc_id, doc, *args, **kwargs)
+
+   Save the specified document to the specified document ID
+   in the remote repository.
+
+.. method:: Branch.list_commits()
+
+   Get a list of all commit objects in this branch in temporal order.
+
+.. method:: Branch.new_commit(changed_docs, *args, **kwargs)
+
+   Create a new remote commit on this branch containing the changed
+   documents *changed_docs*, and return the commit ID.
+
+.. method:: Commit.list_documents(changed=False, *args, **kwargs)
+
+   Get a list of document IDs (as strings) contained in this
+   commit.  If *changed=True* only return IDs of documents that
+   changed in this commit.
+
+.. method:: Commit.get_document(doc_id)
+
+   Get a document object for the specified document ID, reflecting
+   its state in this commit.
+
+
+
+Gitwiki API Classes
+-------------------
+
+.. class:: Document(path)
+
+.. attribute:: Document.id
+
+   the document's unique ID.  For a local document, just its path 
+   within the repository.  For a remote document, its remote repository ID.
+
+.. attribute:: Document.title
+   
+   the document's title
+
+.. method:: Document.__str__()
+
+   get the restructured text of the document as a string.   
+
+.. method:: Document.write(rest_text)
+
+   save the restructured text string to the document file.
+
+.. class:: RemoteMap(remotename, remote)
+
+   Creates an empty map to the specified remote, provided
+   as a remote object.  Adds its mapfile to git.
+
+.. method:: RemoteMap.add(doc, *args, **kwargs)
+
+   Add the specified doc object to the map for this repository,
+   with optional arguments
+
+   
