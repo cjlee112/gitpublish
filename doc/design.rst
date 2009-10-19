@@ -114,6 +114,21 @@ The Gitwiki Plug-in API
 
 My goal is to make it easy for anyone to add a new kind of remote
 by writing in "plug-in" code that conforms to a standard gitwiki API.
+A plug-in can implement several different levels of functionality:
+
+* *pull-only*: enables gitwiki to import content from the remote,
+  but not to export content to the remote.
+
+* *push-only*: enables gitwiki to export content to the remote,
+  but not to import.
+
+* *push/pull without remote version history*: treats the remote as a "snapshot"
+  with no built-in version control.  In other words, the remote
+  can be synched with one specific git commit.  This is reasonably
+  consistent with how git itself tracks its "branches", which are
+  actually just pointers to a specific commit (i.e. the HEAD of
+  that branch).
+
 A plug-in should be a python file named ``plugin/myname.py``
 (where *myname* is the remote protocol name)
 that implements the following classes:
@@ -133,7 +148,7 @@ that implements the following classes:
 
 
 
-.. method:: Remote.new(doc, branchname, *args, **kwargs)
+.. method:: Remote.new_document(doc, branchname, *args, **kwargs)
 
    Save *doc* as a new document in the remote repository in
    branch *branchname*, with optional arguments controlling
