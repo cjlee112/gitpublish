@@ -15,13 +15,54 @@
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the Artistic License.
 #
+# Modified to support direct output of math and displaymath a la sphinx
+# to WordPress, for rendering with jsMath: latex equations are
+# embedded either in <span> (inline) or <div> (displaymath) for jsMath
+# to render in the web browser.
+# What this mainly required was converting single backslash
+# to double backslash to correct for WP's stripping of single backslashes.
+# -- CJL
 import sys
 import docutils
-import docutils.nodes
 from docutils.writers import html4css1
-from docutils import frontend, writers
+from docutils import frontend, writers, nodes, utils
 from docutils.core import publish_cmdline, default_description
+from docutils.parsers.rst import directives, roles
+from sphinx.ext.mathbase import MathDirective, math, eq_role, \
+     displaymath
+from sphinx.util.compat import directive_dwim
 
+
+class MathDirective2(MathDirective):
+	'removes one line from MathDirective that crashes'
+	def run(self):
+		latex = '\n'.join(self.content)
+		if self.arguments and self.arguments[0]:
+			latex = self.arguments[0] + '\n\n' + latex
+		node = displaymath()
+		node['latex'] = latex.replace('\\', '\\\\') # WP strips backslash
+		node['label'] = self.options.get('label', None)
+		node['nowrap'] = 'nowrap' in self.options
+		ret = [node]
+		if node['label']:
+			tnode = nodes.target('', '', ids=['equation-' + node['label']])
+			self.state.document.note_explicit_target(tnode)
+			ret.insert(0, tnode)
+		return ret
+
+
+def math_role(role, rawtext, text, lineno, inliner, options={}, content=[]):
+	latex = text.replace('\x00', '\\\\') # WP strips single backslash
+	obj = math(latex=latex)
+	obj.document = inliner.document # docutils crashes w/o this
+	return [obj], []
+
+def setup():
+	'add support for math to docutils'
+	nodes._add_node_class_names(['math', 'displaymath', 'eqref'])
+	roles.register_local_role('math', math_role)
+	roles.register_local_role('eq', eq_role)
+	directives.register_directive('math', directive_dwim(MathDirective2))
 
 class Writer(html4css1.Writer):
 	supported = ('wphtml', )
@@ -34,7 +75,9 @@ class Writer(html4css1.Writer):
 
 
 class WpHtmlTranslator(html4css1.HTMLTranslator):
-	"""An HTML emitting visitor."""
+	"""An HTML emitting visitor.
+
+	Assumes your WP has support for jsMath."""
 
 	doctype = ('')
 
@@ -124,7 +167,19 @@ class WpHtmlTranslator(html4css1.HTMLTranslator):
 	def depart_literal(self, node):
 		self.body.append('</code>')
 
+	def visit_math(self, node):
+		self.body.append(
+			self.starttag(node, 'span', '', CLASS='math'))
+		self.body.append(self.encode(node['latex']) + '</span>')
+		raise nodes.SkipNode
+		
+	def visit_displaymath(self, node):
+		self.body.append(self.starttag(node, 'div', CLASS='math'))
+		self.body.append(node['latex'])
+		self.body.append('</div>')
+		raise nodes.SkipNode
 
+		
 if __name__ == '__main__':
 	# docutils tries to load the module 'wphtml' below, so we need an alias
 	sys.modules['wphtml'] = sys.modules['__main__']

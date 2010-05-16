@@ -268,7 +268,7 @@ class WordPressBlog(object):
     http://somewhere.wordpress.com/?p=34
     Note that the new post is created *unpublished* so you will only
     be able to see it if you are logged in to your wordpress blog.
-    You can then publish it from the the WP admin interface.
+    You can then publish it from the WP admin interface.
 
     """
     def __init__(self, host, user, password, blog_id=0, path='/xmlrpc.php'):
@@ -279,23 +279,27 @@ class WordPressBlog(object):
         self.password = password
         self.blog_id = blog_id
 
-    def new_post(self, title, content, publish=0):
+    def new_post(self, title, content, publish=True):
         'post a new title + HTML to wordpress'
         d = dict(title=title, description=content)
         post_id = int(self.server.metaWeblog.newPost(self.blog_id,
                                  self.user, self.password, d, publish))
         return post_id
 
-    def new_page(self, title, content, publish=0):
+    def new_page(self, title, content, publish=True):
         d = dict(title=title, description=content)
         page_id = int(self.server.wp.newPage(self.blog_id, self.user,
                                              self.password, d, publish))
         return page_id
 
-    def post_rest(self, restFile):
-        'post a restructured text file to wordpress'
+    def post_rest(self, restFile, isPage=False, publish=True):
+        'post a restructured text file to wordpress as post or page'
         title,html = convert_rest_to_wp(restFile)
-        return self.new_post(title, html) # upload to wordpress
+        if isPage:
+            return self.new_post(title, html, publish) # upload to wordpress
+        else:
+            return self.new_page(title, html, publish) # upload to wordpress
+
 
 def convert_rest_to_wp(restFile):
     'convert ReST to WP html using docutils, rst2wp'
