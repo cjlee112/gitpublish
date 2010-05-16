@@ -13,6 +13,7 @@ Contents:
 
    intro
    basic
+   design
 
 Indices and tables
 ==================
