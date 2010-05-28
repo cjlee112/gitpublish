@@ -63,14 +63,6 @@ class DocMap(object):
             ifile.close()
         return remoteType, repoArgs
 
-    ## def init_from_repo(self, path, remoteType, repoArgs, docDict):
-    ##     'initialize empty mapping from remote repo'
-    ##     for docID, d2 in docDict.items():
-    ##         d2['gitpubID'] = docID
-    ##         d2['gitpubPath'] = ''
-    ##         self.revDict[docID] = d2
-    ##     self.save_file(path, remoteType, repoArgs)
-
     def save_file(self, path, remoteType, repoArgs):
         'save dict and revDict to our json file'
         d = dict(remoteType=remoteType, repoArgs=repoArgs, docDict=self.dict,
@@ -81,56 +73,6 @@ class DocMap(object):
             print >>ifile # make sure file ends in newline
         finally:
             ifile.close()
-
-    def init_from_file_xml(self, path):
-        'initialize mapping from saved XML file'
-        t = ElementTree(file=path)
-        root = t.getroot()
-        remoteType = root.get('remoteType')
-        repoArgs = {}
-        for k,v in root.items():
-            repoArgs[k] = v
-        del repoArgs['remoteType']
-        repoArgs = repoArgs
-        for e in t.getiterator('doc'):
-            d = e.attrib.copy() # get a copy of attribute dict
-            try:
-                self.dict[d['gitpubPath']] = d
-            except KeyError:
-                pass
-            self.revDict[d['gitpubID']] = d
-        return remoteType, repoArgs
-
-    def save_file_xml(self, path, remoteType, repoArgs):
-        'save dict and revDict to our xhtml file'
-        repoDict = repoArgs.copy()
-        repoDict['remoteType'] = remoteType
-        root = Element('remote', repoDict)
-        root.text = '\n' # keep each doc on separate line
-        l = self.dict.keys()
-        l.sort() # keep the entries in standard order
-        for gitpubPath in l:
-            d = {}
-            for k, v in self.dict[gitpubPath].items():
-                d[k] = str(v) # xml can only save string objects?
-            e = SubElement(root, 'doc', d)
-            e.tail = '\n' # keep each doc on separate line
-        l = self.revDict.keys()
-        l.sort() # keep the entries in standard order
-        for gitpubID in l:
-            docDict = self.revDict[gitpubID]
-            try:
-                if docDict['gitpubPath'] in self.dict:
-                    continue # don't duplicate the same entry
-            except KeyError:
-                pass
-            d = {}
-            for k, v in docDict.items():
-                d[k] = str(v) # xml can only save string objects?
-            e = SubElement(root, 'doc', d)
-            e.tail = '\n' # keep each doc on separate line
-        t = ElementTree(root)
-        t.write(path)
 
     def copy(self):
         'return a copy of this docmap'
