@@ -17,7 +17,7 @@ class Repo(object):
     def new_document(self, doc, pubtype='post', publish=True, gitpubHash=None,
                      *args, **kwargs):
         'post a restructured text file to wordpress as post or page'
-        html = convert_rest_to_wp(str(doc))
+        html = convert_rest_to_wp(doc.rest)
         if gitpubHash: # insert our hash code as HTML comment
             html += '\n<!-- gitpubHash=%s -->\n' % gitpubHash
         d = dict(title=doc.title, description=html)
@@ -55,7 +55,7 @@ class Repo(object):
     def set_document(self, doc_id, doc, publish=True, gitpubHash=None, *args, **kwargs):
         'post a restructured text file to wordpress as the specified doc_id'
         pubtype, pub_id = doc_id[:4], doc_id[4:]
-        html = convert_rest_to_wp(str(doc))
+        html = convert_rest_to_wp(doc.rest)
         if gitpubHash: # insert our hash code as HTML comment
             html += '\n<!-- gitpubHash=%s -->\n' % gitpubHash
         d = dict(title=doc.title, description=html)
