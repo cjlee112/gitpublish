@@ -192,8 +192,7 @@ class Remote(object):
             self.repo.delete_document(gitpubID)
             self.docmap.delete_remote_mapping(gitpubID)
 
-    def fetch(self):
-        'retrieve docs from remote, save changed docs and return them as list'
+    def fetch_setup(self):
         importDir = os.path.join(self.basepath, self.importDir % self.name)
         if not os.path.isdir(importDir): # create dir if needed
             os.mkdir(importDir)
@@ -202,23 +201,28 @@ class Remote(object):
         except AttributeError:
             raise ValueError('this remote does not support fetch!')
         docDict = self.repo.list_documents()
+        return importDir, docDict
+
+    def fetch_latest(self):
+        'retrieve docs from remote, save changed docs and return them as list'
+        importDir, docDict = self.fetch_setup()
         l = []
-        for gitpubID, d in docDict.items():
+        for gitpubID in docDict:
             gitpubPath = self.import_doc(gitpubID, importDir)
             if gitpubPath:
                 l.append(gitpubPath)
         return l
 
-    def import_doc(self, gitpubID, importDir):
+    def import_doc(self, gitpubID, importDir, **kwargs):
         'retrieve the specified doc from the remote repo, save to importDir'
         try: # use existing file mapping if present
-            gitpubPath = self.docmap.revDict['gitpubPath']
+            gitpubPath = self.docmap.revDict[gitpubID]['gitpubPath']
             path = os.path.join(self.basepath, gitpubPath)
         except KeyError: # use default import path
             path = os.path.join(importDir, gitpubID + '.rst')
             gitpubPath = relpath(path, self.basepath)
         try:
-            rest, d = self.repo.get_document(gitpubID)
+            rest, d = self.repo.get_document(gitpubID, **kwargs)
         except StandardError:
             print >>sys.stderr, 'failed to get document %s.  Conversion error? Skipping' % gitpubID
             return None
@@ -301,14 +305,48 @@ class TrackingBranch(object):
         if fromStage:
             del self.stage # moved this docmap to self.remote...
 
-    def fetch(self):
+    def fetch_latest(self):
         'fetch latest state from remote, and commit any changes in this branch'
-        repoState = self.localRepo.push_state()
-        self.localRepo.checkout(self.branchName)
         newdocs = self.remote.fetch()
         for gitpubPath in newdocs:
             self.localRepo.add(os.path.join(self.localRepo.basepath, gitpubPath))
-        self.commit('fetch from remote', False, repoState)
+
+    def fetch_doc_history(self, history_f):
+        'commit each doc revision in temporal order'
+        importDir, docDict = self.remote.fetch_setup()
+        l = []
+        for gitpubID in docDict:
+            docHistory = history_f(gitpubID)
+            for revID, d in docHistory.items():
+                l.append((d['timestamp'], gitpubID, revID, d))
+        l.sort() # sort in temporal order
+        revCommits = {}
+        for t, gitpubID, revID, d in l:
+            gitpubPath = self.remote.import_doc(gitpubID, importDir, revID=revID)
+            self.localRepo.add(os.path.join(self.localRepo.basepath, gitpubPath))
+            commitID = self.localRepo.commit('%s revision %s on %s'
+                                             % (t.ctime(), str(revID), str(gitpubID)))
+            d2 = self.remote.docmap.dict[gitpubPath]
+            try: # save the commit ID mapping info
+                revCommits[gitpubPath][revID] = commitID
+            except KeyError:
+                revCommits[gitpubPath] = {revID:commitID}
+            d2['revCommit'] = revCommits[gitpubPath]
+
+    def fetch(self):
+        'fetch doc history (if repo supports this) or latest snapshot'
+        repoState = self.localRepo.push_state()
+        self.localRepo.checkout(self.branchName)
+        try:
+            history_f = self.remote.repo.get_document_history
+            msg = 'updated doc mappings and revision history from fetch'
+        except AttributeError:
+            self.fetch_latest()
+            msg = 'fetch from remote'
+        else:
+            self.fetch_doc_history(history_f)
+        self.commit(msg, False, repoState)
+
 
 try:
     relpath = os.path.relpath # python 2.6+
@@ -339,6 +377,7 @@ class GitRepoState(object):
     def pop(self):
         self.repo.checkout(self.branch)
         
+
 class GitRepo(object):
     def __init__(self, basepath):
         'basepath should be top of the git repository, i.e. dir containing .git dir'
@@ -356,7 +395,10 @@ class GitRepo(object):
         run_subprocess(('git', 'add', path), 'git add error %d')
 
     def commit(self, message):
+        'commit and return its commit ID'
         run_subprocess(('git', 'commit', '-m', message), 'git commit error %d')
+        l = Popen(["git", "log", 'HEAD^..HEAD'], stdout=PIPE).communicate()[0].split('\n')
+        return l[0].split()[1] # return our commit ID
 
     def branch(self, branchname=None):
         'create new branch, or list existing branches, with current branch first'
