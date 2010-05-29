@@ -248,7 +248,7 @@ class TrackingBranch(object):
     def __init__(self, name, localRepo, branchName=None, doFetch=True, **kwargs):
         '''create the branch if not present'''
         if branchName is None:
-            branchName = '/'.join(('gitpub', name, 'master'))
+            branchName = '/'.join(('gpremotes', name, 'master'))
         self.branchName = branchName
         self.localRepo = localRepo
         if branchName not in localRepo.branches:

@@ -1,6 +1,6 @@
 
 ==================
-The Gitwiki Design
+The Gitpublish Design
 ==================
 
 A Git-like Interface for Publishing
@@ -49,7 +49,7 @@ and I can push content from my master branch to ``upstream`` by typing::
 I want to do exactly the same thing with remote "containers"
 that are *not* git repositories.  For example::
 
-   gitwiki remote add my_wordpress wordpress:thinking.bioinformatics.ucla.edu
+   gitpublish remote add my_wordpress wordpress:thinking.bioinformatics.ucla.edu
 
 
 creates a new *remote* called ``my_wordpress``, which points to a
@@ -57,69 +57,108 @@ WordPress website at ``thinking.bioinformatics.ucla.edu``.  I can
 then push restructured text content from my master branch
 to that WordPress blog as simply as::
 
-   gitwiki push my_wordpress master
+   gitpublish push my_wordpress master
 
 Of course, this requires some transparent magic to automatically
 convert the restructured text to the style of HTML that WordPress uses,
-and upload the content via XMLRPC.  Gitwiki is all about automating 
+and upload the content via XMLRPC.  Gitpublish is all about automating 
 such standard conversion and transmission tasks, and integrating
 them in a clean way with the power of git.
 
 
-The Gitwiki Interface
+The Gitpublish Interface
 ---------------------
 
 * *add a remote*::
 
-    gitwiki remote add <remotename> <protocol>:<address>
+    gitpublish remote add <remotename> <protocol>:<address>
 
 * *fetch* updates from a remote as (new) git branches and commits::
 
-    gitwiki fetch <remotename>
+    gitpublish fetch <remotename>
 
   New commits show up on branches named
-  ``gwremotes/<remotename>/<branchname>``.  New files will be automatically
-  converted to the local format(s) specified by your gitwiki
+  ``gpremotes/<remotename>/<branchname>``.  New files will show up
+  by default in a directory called *<remotename>-import*.
+  Content will be automatically
+  converted to the local format(s) specified by your gitpublish
   config file (i.e. ``.rst``, ``.csv``, ``.opml`` etc.).
+
+* Checkout a remote tracking branch, to prepare content for
+  sending to remote repository::
+
+    gitpublish checkout <remotename> [<branchname>]
+
+  This command simply executes::
+
+    git checkout gpremotes/<remotename>/<branchname>
 
 * *add* a local file to be published on a particular remote::
 
-    gitwiki add -r my_wordpress bigdoc.rst
+    gitpublish add bigdoc.rst [--pubtype=page ...]
 
-Note that just like ``git add``, this simply *marks* the file
-for addition to the remote.  This change won't actually be pushed
-to the remote until you tell it to (see below).  Specifically, it
-adds a mapping for the designated file ``bigdoc.rst`` to be
-mapped to the designated remote, in this case using a default
-mapping.  For WordPress, a *Post*.  Provide extra arguments to
-give a non-default mapping (e.g. a *Page*).  The default will
-obtain the title etc. from the restructured text document.
-Automatically adds the updated state of the remote mapping
-file to git (via ``git add``).
-
-* *commit* changes including remote mappings.  Just a proxy for
-  regular ``git commit``, which you can use equally well.
+  Note that just like ``git add``, this simply *marks* the file
+  for addition to the remote, by adding it to the :class:`DocMap`
+  file that maps local files to this remote repository.
+  This change won't actually be pushed
+  to the remote until you *gitpublish push* (see below).  Specifically, it
+  adds a mapping for the designated file ``bigdoc.rst`` to be
+  mapped to the designated remote, in this case using a default
+  mapping.  For WordPress, a *Post*.  Provide extra arguments to
+  give a non-default mapping (e.g. a *Page*).  The default will
+  obtain the title etc. from the restructured text document.
+  Automatically adds the updated state of the remote mapping
+  file to git (via ``git add``).
 
 * *remove* a local file from publication on a particular remote::
 
-    gitwiki rm -r my_wordpress bigdoc.rst
+    gitpublish rm bigdoc.rst
+
+* *rename* a local file::
+
+    gitpublish mv <oldpath> <newpath>
+
+  This does two things:
+
+    * it runs *git mv <oldpath> <newpath>*.
+
+    * it updates the :class:`DocMap` entry to reflect the local file
+      name change.
+
+  Note that just as for *git mv* you must *commit* the change.
+
+* *commit* changes including remote mappings.  Just a proxy for
+  regular ``git commit``, which you can use equally well::
+
+    gitpublish commit -m 'a message'
 
 * *push* my changes to the remote (to publish them)::
 
-    gitwiki push my_wordpress master
+    gitpublish push my_wordpress [<branchname>]
+
+* *merge* a local branch into your remote tracking branch.  Use this
+  to bring in changes in your local documents, as the first step to
+  pushing those changes to the remote repository::
+
+    gitpublish merge <localbranch>
+
+  All this does is call *git merge <localbranch>*.  
+
+  Note that you must be on a gitpublish remote tracking branch to 
+  run this command (i.e. you must first run *gitpublish checkout*).
 
 
-The Gitwiki Plug-in API
+The Gitpublish Plug-in API
 -----------------------
 
 My goal is to make it easy for anyone to add a new kind of remote
-by writing in "plug-in" code that conforms to a standard gitwiki API.
+by writing in "plug-in" code that conforms to a standard gitpublish API.
 A plug-in can implement several different levels of functionality:
 
-* *pull-only*: enables gitwiki to import content from the remote,
+* *pull-only*: enables gitpublish to import content from the remote,
   but not to export content to the remote.
 
-* *push-only*: enables gitwiki to export content to the remote,
+* *push-only*: enables gitpublish to export content to the remote,
   but not to import.
 
 * *push/pull without remote version history*: treats the remote as a "snapshot"
@@ -129,54 +168,60 @@ A plug-in can implement several different levels of functionality:
   actually just pointers to a specific commit (i.e. the HEAD of
   that branch).
 
-A plug-in should be a python file named ``plugin/myname.py``
+A plug-in should be a python file named ``gitpublish/plugin/myname.py``
 (where *myname* is the remote protocol name)
-that implements the following classes:
+that implements the following class (for an example see
+gitpublish/plugin/wordpress.py):
 
 
-.. class:: Remote(address, *args, **kwargs)
+.. class:: Repo(*args, **kwargs)
 
    Create an instance object that provides an interface to the
-   remote repository.
+   remote repository.  It will be passed keyword arguments.
 
-   *address* is a string formatted according
-   to the expectations of the specific remote type.
+.. method:: Repo.new_document(doc, gitpubHash=None, *args, **kwargs)
 
-   *map* is a gitwiki map object that provides forward and backward
-   mappings of gitwiki documents to remote documents, stored
-   persistently.
-
-
-
-.. method:: Remote.new_document(doc, branchname, *args, **kwargs)
-
-   Save *doc* as a new document in the remote repository in
+   Save *doc* as a new :class:`Document` in the remote repository in
    branch *branchname*, with optional arguments controlling
    how it should be stored.  Returns the new document's 
    unique ID in the remote repository.
 
-.. method:: Remote.list_branches()
+   *gitpubHash* provides a hashcode for the current content state.
+   The new_document() method should save it to the remote repository
+   if possible, in a form that can be retrieved by get_document().
+   This will enable gitpublish to see if any changes have been
+   made independently to the document on the remote repository.
+
+.. method:: Repo.list_documents(*args, **kwargs)
+
+   Get a dict of remote document ID (as a string), whose associated value
+   should be a dictionary of document attributes (whatever information
+   is appropriate from this remote).
+
+.. method:: Repo.get_document(doc_id)
+
+   Get (rest, info) pair, where *rest* is the restructured text of
+   the specified document, and *info* is a dictionary of document attributes
+   (whatever information is appropriate from this remote).
+
+.. method:: Repo.set_document(doc_id, doc, *args, **kwargs)
+
+   Save the specified :class:`Document` to the specified document ID
+   in the remote repository.
+
+For remote repositories that support branches:
+
+.. method:: Repo.list_branches()
 
    Get a list of branches in the remote repository, as a list of
    string branch names.  Returns *None* if the remote does not support
    multiple branches.
 
-.. method:: Remote.get_branch(branchname)
+.. method:: Repo.get_branch(branchname)
 
    Get a branch object for the specified branch name.
 
-.. method:: Remote.list_documents(*args, **kwargs)
 
-   Get a list of document IDs (as strings).
-
-.. method:: Remote.get_document(doc_id)
-
-   Get a document object for the specified document ID.
-
-.. method:: Remote.set_document(doc_id, doc, *args, **kwargs)
-
-   Save the specified document to the specified document ID
-   in the remote repository.
 
 .. method:: Branch.list_commits()
 
@@ -200,7 +245,7 @@ that implements the following classes:
 
 
 
-Gitwiki API Classes
+Gitpublish API Classes
 -------------------
 
 .. class:: Document(path)
@@ -214,7 +259,7 @@ Gitwiki API Classes
    
    the document's title
 
-.. method:: Document.__str__()
+.. attribute:: Document.rest
 
    get the restructured text of the document as a string.   
 
