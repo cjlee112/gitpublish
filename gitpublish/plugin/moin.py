@@ -28,7 +28,8 @@ class Repo(object):
     def get_document(self, doc_id, revID=None):
         'retrieve the specified post or page and convert to ReST'
         if revID is None:
-            ifile = open(os.path.join(self.wikiDir, 'data', 'pages', doc_id, current))
+            ifile = open(os.path.join(self.wikiDir, 'data', 'pages', doc_id,
+                                      'current'))
             try:
                 revID = ifile.read().strip()
             finally:
