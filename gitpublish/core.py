@@ -81,6 +81,22 @@ class DocMap(object):
         m.dict.update(self.dict)
         return m
 
+    def mv(self, oldpath, newpath):
+        'alter mapping to replace oldpath with newpath'
+        d = self.dict[oldpath]
+        d['gitpubPath'] = newpath
+        del self.dict[oldpath]
+        self.dict[newpath] = d
+        try:
+            gitpubID = d['gitpubID']
+            self.revDict[gitpubID] = d
+        except KeyError:
+            pass
+
+    def __getitem__(self, gitpubPath):
+        'raises KeyError if not found'
+        return self.dict[gitpubPath]
+
     def __setitem__(self, gitpubPath, docDict):
         'add mapping for a local document, to a dict of doc-attributes'
         docDict['gitpubPath'] = gitpubPath
@@ -93,7 +109,7 @@ class DocMap(object):
     def __delitem__(self, gitpubPath):
         'delete mapping for a local document, to delete it from remote repo'
         try:
-            del self.revDict[self.dict['gitpubID']]
+            del self.revDict[self.dict[gitpubPath]['gitpubID']]
         except KeyError: # document not yet published in remote, ok
             pass
         del self.dict[gitpubPath]
@@ -169,11 +185,22 @@ class Remote(object):
         ##         self.docmap.init_from_repo(self.path, remoteType, repoArgs,
         ##                                    docDict)
 
-    def save_doc_map(self):
-        self.docmap.save_file(self.path, self.remoteType, self.repoArgs)
+    def save_doc_map(self, lastPush=False):
+        if lastPush:
+            path = os.path.join(self.basepath, '.gitpub', name + '.lastpush.json')
+        else:
+            path = self.path
+        self.docmap.save_file(path, self.remoteType, self.repoArgs)
+        return path
                 
-    def push(self, newmap):
-        diff = newmap - self.docmap # analyze doc map changes
+    def push(self, newmap=None):
+        if newmap is None: # send changes since last push, based on saved docmap
+            oldmap = DocMap()
+            oldmap.init_from_file(os.path.join(self.basepath, '.gitpub',
+                                               name + '.lastpush.json'))
+            diff = self.docmap - oldmap
+        else:
+            diff = newmap - self.docmap # analyze doc map changes
         for gitpubPath in diff.newDocs: # publish new docs on remote repo
             newdoc = Document(self.basepath, gitpubPath)
             docDict = newmap.dict[gitpubPath].copy()
@@ -249,22 +276,27 @@ class Remote(object):
 
 
 class TrackingBranch(object):
-    def __init__(self, name, localRepo, branchName=None, doFetch=True, **kwargs):
+    def __init__(self, name, localRepo, branchName='master', doFetch=True,
+                 autoCreate=False, doCheckout=False, **kwargs):
         '''create the branch if not present'''
-        if branchName is None:
-            branchName = '/'.join(('gpremotes', name, 'master'))
-        self.branchName = branchName
+        self.branchName = '/'.join(('gpremotes', name, branchName))
         self.localRepo = localRepo
         if branchName not in localRepo.branches:
-            localRepo.branch(branchName) # create new branch
+            if autoCreate:
+                localRepo.branch(branchName) # create new branch
+            else:
+                raise ValueError('no such gitpublish remote branch in this repo!')
+        elif doCheckout:
+            self.localRepo.checkout(self.branchName)
         self.remote = Remote(name, localRepo.basepath, **kwargs)
         if doFetch:
             self.fetch()
 
-    def push(self, newmap):
+    def push(self, newmap=None):
         'push changes to remote and commit map changes'
         self.remote.push(newmap) # actually send the changes to the remote
-        self.commit(message='publish doc changes to remote', fromStage=False)
+        self.commit(message='publish doc changes to remote', fromStage=False,
+                    lastPush=True)
 
     def get_stage(self):
         'return temporary docmap where we can add changes before committing them'
@@ -286,20 +318,31 @@ class TrackingBranch(object):
         docmap = self.get_stage()
         del docmap[gitpubPath]
 
-    def commit(self, message, fromStage=True, repoState=None):
+    def mv(self, oldpath, newpath):
+        oldpath = relpath(oldpath, self.localRepo.basepath)
+        newpath = relpath(newpath, self.localRepo.basepath)
+        docmap = self.get_stage()
+        docmap.mv(oldpath, newpath)
+        self.localRepo.mv(oldpath, newpath)
+
+    def save_stage(self):
+        'save staged docmap to file and tell DVCS to stage it for next commit'
+        self.remote.docmap = self.stage
+        self.remote.save_doc_map()
+        self.localRepo.add(self.remote.path)        
+
+    def commit(self, message, fromStage=True, repoState=None, lastPush=False):
         'commit map changes to our associated tracking branch in the local repo'
-        if fromStage:
-            try:
-                docmap = self.stage
-            except AttributeError:
-                raise AttributeError('no changes to commit')
+        if fromStage and not hasattr(self, 'stage'):
+            raise AttributeError('no changes to commit')
         if repoState is None:
             repoState = localRepo.push_state()
             self.localRepo.checkout(self.branchName)
         if fromStage:
-            self.remote.docmap = docmap
-        self.remote.save_doc_map()
-        self.localRepo.add(self.remote.path)
+            self.remote.docmap = self.stage
+        self.localRepo.add(self.remote.save_doc_map())
+        if lastPush: # save copy of mapping as last synch with remote
+            self.localRepo.add(self.remote.save_doc_map(lastPush=True))
         self.localRepo.commit(message=message)
         repoState.pop()
         if fromStage:
@@ -307,7 +350,7 @@ class TrackingBranch(object):
 
     def fetch_latest(self):
         'fetch latest state from remote, and commit any changes in this branch'
-        newdocs = self.remote.fetch()
+        newdocs = self.remote.fetch_latest()
         for gitpubPath in newdocs:
             self.localRepo.add(os.path.join(self.localRepo.basepath, gitpubPath))
 
@@ -322,16 +365,22 @@ class TrackingBranch(object):
         l.sort() # sort in temporal order
         revCommits = {}
         for t, gitpubID, revID, d in l:
+            try:
+                if revID in self.remote.docmap[gitpubPath]['revCommit']:
+                    continue # already retrieved & committed this file rev
+            except KeyError:
+                pass
             gitpubPath = self.remote.import_doc(gitpubID, importDir, revID=revID)
             self.localRepo.add(os.path.join(self.localRepo.basepath, gitpubPath))
             commitID = self.localRepo.commit('%s revision %s on %s'
                                              % (t.ctime(), str(revID), str(gitpubID)))
-            d2 = self.remote.docmap.dict[gitpubPath]
+            d2 = self.remote.docmap[gitpubPath]
             try: # save the commit ID mapping info
                 revCommits[gitpubPath][revID] = commitID
             except KeyError:
                 revCommits[gitpubPath] = {revID:commitID}
             d2['revCommit'] = revCommits[gitpubPath]
+            self.remote.docmap[gitpubPath] = d2 # save updated metadata
 
     def fetch(self):
         'fetch doc history (if repo supports this) or latest snapshot'
@@ -345,7 +394,7 @@ class TrackingBranch(object):
             msg = 'fetch from remote'
         else:
             self.fetch_doc_history(history_f)
-        self.commit(msg, False, repoState)
+        self.commit(msg, False, repoState, lastPush=True)
 
 
 try:
@@ -379,8 +428,16 @@ class GitRepoState(object):
         
 
 class GitRepo(object):
-    def __init__(self, basepath):
+    def __init__(self, basepath=None):
         'basepath should be top of the git repository, i.e. dir containing .git dir'
+        if basepath is None:
+            l = os.path.split(os.getcwd())
+            for i in range(len(l), 0, -1):
+                if os.path.isdir(os.path.join(l[:i] + ['.git'])):
+                    basepath = os.path.join(l[:i])
+                    break
+            if basepath is None:
+                raise ValueError('not inside a git repository!')
         self.basepath = basepath
         self.branches = self.list_branches()
 
@@ -393,6 +450,17 @@ class GitRepo(object):
         'git add <path>'
         path = relpath(path) # relative to current directory
         run_subprocess(('git', 'add', path), 'git add error %d')
+
+    def rm(self, path):
+        'git rm <path>'
+        path = relpath(path) # relative to current directory
+        run_subprocess(('git', 'rm', path), 'git rm error %d')
+
+    def mv(self, oldpath, newpath):
+        'git mv <oldpath> <newpath>'
+        oldpath = relpath(oldpath) # relative to current directory
+        newpath = relpath(newpath) # relative to current directory
+        run_subprocess(('git', 'mv', oldpath, newpath), 'git mv error %d')
 
     def commit(self, message):
         'commit and return its commit ID'
