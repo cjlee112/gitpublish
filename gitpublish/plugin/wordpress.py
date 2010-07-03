@@ -22,15 +22,20 @@ class Repo(object):
             html += '\n<!-- gitpubHash=%s -->\n' % gitpubHash
         d = dict(title=doc.title, description=html)
         if pubtype == 'page':
-            return 'page' + self.server.wp.newPage(self.blog_id, self.user,
+            return 'page:' + self.server.wp.newPage(self.blog_id, self.user,
                                              self.password, d, publish)
         else:
-            return 'post' + self.server.metaWeblog.newPost(self.blog_id,
+            return 'post:' + self.server.metaWeblog.newPost(self.blog_id,
                                  self.user, self.password, d, publish)
+
+    def _get_pubtype_id(self, doc_id):
+        pubtype = doc_id.split(':')[0]
+        pub_id = doc_id[len(pubtype) + 1:]
+        return pubtype, pub_id
 
     def get_document(self, doc_id):
         'retrieve the specified post or page and convert to ReST'
-        pubtype, pub_id = doc_id[:4], doc_id[4:]
+        pubtype, pub_id = self._get_pubtype_id(doc_id)
         if pubtype == 'page':
             result = self.server.wp.getPage(self.blog_id, pub_id, self.user,
                                             self.password)
@@ -54,7 +59,7 @@ class Repo(object):
             
     def set_document(self, doc_id, doc, publish=True, gitpubHash=None, *args, **kwargs):
         'post a restructured text file to wordpress as the specified doc_id'
-        pubtype, pub_id = doc_id[:4], doc_id[4:]
+        pubtype, pub_id = self._get_pubtype_id(doc_id)
         html = convert_rest_to_wp(doc.rest)
         if gitpubHash: # insert our hash code as HTML comment
             html += '\n<!-- gitpubHash=%s -->\n' % gitpubHash
@@ -70,7 +75,7 @@ class Repo(object):
 
     def delete_document(self, doc_id, publish=True, *args, **kwargs):
         'delete a post or page from the WP server'
-        pubtype, pub_id = doc_id[:4], doc_id[4:]
+        pubtype, pub_id = self._get_pubtype_id(doc_id)
         if pubtype == 'page':
             v = self.server.wp.deletePage(self.blog_id, self.user,
                                           self.password, pub_id)
@@ -94,9 +99,9 @@ class Repo(object):
 
         
     
-def convert_rest_to_wp(rest):
+def convert_rest_to_wp(rest, wpServer=None):
     'convert ReST to WP html using docutils, rst2wp'
-    writer = rst2wp.Writer()
+    writer = rst2wp.Writer(wpServer)
     return publish_string(rest, writer=writer) # convert to wordpress
 
 

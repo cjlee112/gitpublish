@@ -69,9 +69,11 @@ class Writer(html4css1.Writer):
 
 	settings_spec = html4css1.Writer.settings_spec + ( )
 
-	def __init__(self):
+	def __init__(self, wpServer=None):
 		html4css1.Writer.__init__(self)
-		self.translator_class = WpHtmlTranslator
+		class MyWpHtmlTranslator(WpHtmlTranslator):
+			wpServer = wpServer
+		self.translator_class = MyWpHtmlTranslator
 
 
 class WpHtmlTranslator(html4css1.HTMLTranslator):
@@ -178,6 +180,11 @@ class WpHtmlTranslator(html4css1.HTMLTranslator):
 		self.body.append(node['latex'])
 		self.body.append('</div>')
 		raise nodes.SkipNode
+
+	# overwritten
+	def visit_image(self, node):
+		print 'visit_image(): uri=', node['uri']
+		html4css1.HTMLTranslator.visit_image(self, node)
 
 		
 if __name__ == '__main__':
