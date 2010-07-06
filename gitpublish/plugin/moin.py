@@ -41,7 +41,8 @@ class Repo(object):
             convert_moin_to_rest(ifile, rest)
         finally:
             ifile.close()
-        return rest.getvalue(), {} # no metadata
+        doc = core.Document(rest=rest.getvalue())
+        return doc, {} # no metadata
 
 
 

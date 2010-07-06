@@ -69,10 +69,11 @@ class Writer(html4css1.Writer):
 
 	settings_spec = html4css1.Writer.settings_spec + ( )
 
-	def __init__(self, wpServer=None):
+	def __init__(self, doc=None, unresolvedRefs=None):
 		html4css1.Writer.__init__(self)
 		class MyWpHtmlTranslator(WpHtmlTranslator):
-			wpServer = wpServer
+			gitpubDoc = doc
+			gitpubUnresolvedRefs = unresolvedRefs
 		self.translator_class = MyWpHtmlTranslator
 
 
@@ -183,7 +184,15 @@ class WpHtmlTranslator(html4css1.HTMLTranslator):
 
 	# overwritten
 	def visit_image(self, node):
-		print 'visit_image(): uri=', node['uri']
+		'''rewrite local path to its path on remote, or if that
+		fails, add document to unresolved refs list.'''
+		try:
+			d = self.gitpubDoc.relative_path(node['uri'])
+			node['uri'] = d['gitpubRemotePath'] # use path on remote
+		except KeyError: # not yet present in mapping, so resolve later
+			self.gitpubUnresolvedRefs.add(self.gitpubDoc)
+		except TypeError: # no docmap?
+			pass
 		html4css1.HTMLTranslator.visit_image(self, node)
 
 		

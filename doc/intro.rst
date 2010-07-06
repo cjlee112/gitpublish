@@ -1,15 +1,16 @@
 
-===============================================================
-Gitwiki: Using Git and Restructured Text as a Publishing System
-===============================================================
+==================================================================
+Gitpublish: Using Git and Restructured Text as a Publishing System
+==================================================================
 
-Why use Git for a Wiki?
------------------------
+Why use Git for publishing?
+---------------------------
 
 Distributed version control systems like Git solve one of the basic 
-problems of wikis -- how to let everyone have autonomy (i.e. edit their
+problems of collaborating on text projects 
+-- how to let everyone have autonomy (i.e. edit their
 version of some content as they like), while sharing with others.
-Each user can have their own copy of the wiki, edit it however they like,
+Each user can have their own copy, edit it however they like,
 but then make their changes available to others, who can pull and merge
 those changes into their own repositories if they like.  All of this
 can flow naturally to one or more "master" public repositories which
@@ -21,8 +22,8 @@ merging, and collaborating across networks, and excellent
 community hosting services like Github.
 
 
-Why use Restructured Text for a Wiki?
--------------------------------------
+Why use Restructured Text?
+--------------------------
 
 Restructured Text is a minimal markup language that anyone can learn
 quickly by looking at example documents.  More to the point, it has been
@@ -68,31 +69,29 @@ with easily in a variety of ways (see :doc:`basic`):
   Gitwiki can automatically generate restructured text from OPML,
   so you can keep your outlines in OPML, which "plays nice" with Git.
 
-Try Gitwiki Yourself
+Try Gitpublish Yourself
 --------------------
 
-You obviously need git to use Gitwiki in any meaningful way.  You 
+You obviously need git to use Gitpublish in any meaningful way.  You 
 can get it from [http://git-scm.com/].
 
-You can either get a copy of Gitwiki directly::
+You can either get a copy of Gitpublish directly::
 
-   git clone git://github.com/cjlee112/Gitwiki.git
-   cd Gitwiki
-   git remote add upstream git://github.com/cjlee112/Gitwiki.git
+   git clone git://github.com/cjlee112/gitpublish.git
 
-Or better yet, create your own fork of Gitwiki on Github.  Go to
-[http://github.com/cjlee112/Gitwiki] and click the ``fork`` button.
+Or better yet, create your own fork of Gitpublish on Github.  Go to
+[http://github.com/cjlee112/gitpublish] and click the ``fork`` button.
 Then clone it to your local computer via::
 
-   git clone git@github.com:username/Gitwiki.git
+   git clone git@github.com:username/gitpublish.git
    cd Gitwiki
-   git remote add upstream git://github.com/cjlee112/Gitwiki.git
+   git remote add upstream git://github.com/cjlee112/gitpublish.git
 
 where *username* should be your Github user name.
 
 You can then, edit, commit, and branch Gitwiki to your heart's content.
 The wiki documents are in the ``doc`` directory, and the source code
-in the ``gitwiki`` directory.
+in the ``gitpublish`` directory.
 
 If you cloned the repository from your own fork, you can then push your changes
 to your public Github repository::
@@ -142,6 +141,6 @@ The HTML output will show up in ``doc/_build/html``.
 Importing Your Data
 -------------------
 
-Gitwiki provides some basic tools for importing a variety of data
+Gitpublish provides some basic tools for importing a variety of data
 formats.  See :doc:`basic`.
 

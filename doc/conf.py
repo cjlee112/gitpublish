@@ -43,7 +43,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'Gitwiki'
+project = u'Gitpublish'
 copyright = u'2009, Christopher Lee'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -164,7 +164,7 @@ html_static_path = ['_static']
 #html_file_suffix = ''
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'Gitwikidoc'
+htmlhelp_basename = 'Gitpublishdoc'
 
 
 # -- Options for LaTeX output --------------------------------------------------
@@ -178,7 +178,7 @@ htmlhelp_basename = 'Gitwikidoc'
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
-  ('index', 'Gitwiki.tex', u'Gitwiki Documentation',
+  ('index', 'Gitpublish.tex', u'Gitpublish Documentation',
    u'Christopher Lee', 'manual'),
 ]
 

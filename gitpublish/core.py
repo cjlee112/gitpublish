@@ -7,35 +7,90 @@ import codecs
 import sys
 import json
 
+
+def _read(ifile):
+    try:
+        return ifile.read()
+    finally:
+        ifile.close()
+
 class Document(object):
-    def __init__(self, basepath, path):
-        self.path = os.path.join(basepath, path)
-        ifile = codecs.open(self.path, 'r', 'utf-8')
-        try:
-            self.rest = ifile.read()
-        finally:
-            ifile.close()
-        xhtml = publish_string(rest, writer_name='xml')
+    def __init__(self, basepath=None, gitpubPath=None, rest=None, binaryData=None,
+                 docmap=None):
+        if gitpubPath:
+            self.set_path(basepath, gitpubPath)
+            initDict = dict(rst=self.open_rest, jpg=self.open_image,
+                            jpeg=self.open_image, png=self.open_image)
+            initDict[gitpubPath.split('.')[-1]]() # call the appropriate initializer
+        elif rest:
+            self.rest = rest
+        elif binaryData:
+            self.binaryData = binaryData
+        else:
+            raise ValueError('Document called with no args!')
+        self.docmap = docmap
+
+    def set_path(self, basepath, gitpubPath):
+        self.path = os.path.join(basepath, gitpubPath)
+        self.basepath = basepath
+        self.gitpubPath = gitpubPath
+
+    def open_rest(self):
+        self.rest = _read(codecs.open(self.path, 'r', 'utf-8'))
+        xhtml = publish_string(self.rest, writer_name='xml')
         x = XML(xhtml) # parse the XML text
         self.title = x.find('title').text #extract its title
 
-    def __str__(self):
-        return self.rest
+    def set_content_type(self, contentType=None, filename=None):
+        'guess from filename if not provided by caller'
+        if contentType:
+            self.contentType = contentType
+            return
+        typeDict = dict(jpg='image/jpeg', jpeg='image/jpeg', png='image/png')
+        if filename is None:
+            filename = self.path
+        self.contentType = typeDict[filename.split('.')[-1]]
 
-    def write(self, rest):
+    def relative_path(self, relpath):
+        'get doc info dict for path relative to this doc, or KeyError'
+        gitpubPath = os.path.normpath(os.path.join(os.path.dirname(self.gitpubPath),
+                                                   relpath))
+        return self.docmap[gitpubPath]
+
+    def open_image(self):
+        self.binaryData = _read(file(self.path))
+        self.set_content_type()
+
+    def get_hash(self):
+        try:
+            return unicode_safe_hash(self.rest)
+        except AttributeError:
+            return hashlib.sha1(self.binaryData).hexdigest()
+
+    def write_rest(self):
         ifile = codecs.open(self.path, 'w', 'utf-8')
         try:
-            ifile.write(rest)
+            ifile.write(self.rest)
         finally:
             ifile.close()
-        self.rest = rest
+
+    def write(self):
+        if hasattr(self, 'rest'):
+            self.write_rest()
+        else:
+            ifile = file(self.path, 'wb')
+            try:
+                ifile.write(self.binaryData)
+            finally:
+                ifile.close()
+
 
 def import_plugin(remoteType):
     'get Repo class from plugin/<remoteType>.py'
     try:
         mod = __import__('plugin.' + remoteType, globals(), locals(), ['Repo'])
     except ImportError:
-        raise ImportError('plugin %s not found, or missing Repo class!')
+        raise ImportError('plugin %s not found, or missing Repo class!' % remoteType)
     return mod.Repo
 
 
@@ -44,6 +99,14 @@ def unicode_safe_hash(s):
     e = codecs.getencoder('utf8')
     s2, n = e(s)
     return hashlib.sha1(s2).hexdigest()
+
+def copy_kwargs(kwargs):
+    'ensure all keys are str not unicode!'
+    d = {}
+    for k,v in kwargs.items():
+        d[str(k)] = v
+    return d
+
 
 class DocMap(object):
     def __init__(self):
@@ -61,7 +124,7 @@ class DocMap(object):
             self.revDict = d['revDict']
         finally:
             ifile.close()
-        return remoteType, repoArgs
+        return remoteType, copy_kwargs(repoArgs)
 
     def save_file(self, path, remoteType, repoArgs):
         'save dict and revDict to our json file'
@@ -99,6 +162,7 @@ class DocMap(object):
 
     def __setitem__(self, gitpubPath, docDict):
         'add mapping for a local document, to a dict of doc-attributes'
+        self._del_rev_mapping(gitpubPath)
         docDict['gitpubPath'] = gitpubPath
         self.dict[gitpubPath] = docDict
         try:
@@ -106,12 +170,16 @@ class DocMap(object):
         except KeyError: # document not yet published in remote, ok
             pass
 
-    def __delitem__(self, gitpubPath):
-        'delete mapping for a local document, to delete it from remote repo'
+    def _del_rev_mapping(self, gitpubPath):
+        'delete current gitpubID reverse mapping for this gitpubPath'
         try:
             del self.revDict[self.dict[gitpubPath]['gitpubID']]
         except KeyError: # document not yet published in remote, ok
             pass
+
+    def __delitem__(self, gitpubPath):
+        'delete mapping for a local document, to delete it from remote repo'
+        self._del_rev_mapping(gitpubPath)
         del self.dict[gitpubPath]
 
     def delete_remote_mapping(self, gitpubID):
@@ -187,7 +255,8 @@ class Remote(object):
 
     def save_doc_map(self, lastPush=False):
         if lastPush:
-            path = os.path.join(self.basepath, '.gitpub', name + '.lastpush.json')
+            path = os.path.join(self.basepath, '.gitpub',
+                                self.name + '.lastpush.json')
         else:
             path = self.path
         self.docmap.save_file(path, self.remoteType, self.repoArgs)
@@ -197,27 +266,47 @@ class Remote(object):
         if newmap is None: # send changes since last push, based on saved docmap
             oldmap = DocMap()
             oldmap.init_from_file(os.path.join(self.basepath, '.gitpub',
-                                               name + '.lastpush.json'))
+                                               self.name + '.lastpush.json'))
+            newmap = self.docmap
             diff = self.docmap - oldmap
         else:
             diff = newmap - self.docmap # analyze doc map changes
+        unresolvedRefs = set()
         for gitpubPath in diff.newDocs: # publish new docs on remote repo
-            newdoc = Document(self.basepath, gitpubPath)
-            docDict = newmap.dict[gitpubPath].copy()
-            docDict['gitpubHash'] = unicode_safe_hash(newdoc.rest)
-            gitpubID = self.repo.new_document(newdoc, **docDict)
-            docDict['gitpubID'] = gitPubID
+            newdoc = Document(self.basepath, gitpubPath, docmap=self.docmap)
+            docDict = copy_kwargs(newmap.dict[gitpubPath])
+            docDict['gitpubHash'] = newdoc.get_hash()
+            docDict.update(self.repo.new_document(newdoc,
+                                  unresolvedRefs=unresolvedRefs, **docDict))
             self.docmap[gitpubPath] = docDict
         for gitpubPath in diff.changedDocs: # update changed docs on remote repo
-            newdoc = Document(self.basepath, gitpubPath)
-            docDict = newmap.dict[gitpubPath].copy()
-            docDict['gitpubHash'] = unicode_safe_hash(newdoc.rest)
-            self.repo.set_document(docDict['gitpubID'], newdoc, **docDict)
+            newdoc = Document(self.basepath, gitpubPath, docmap=self.docmap)
+            docDict = copy_kwargs(newmap.dict[gitpubPath])
+            docDict['gitpubHash'] = newdoc.get_hash()
+            d = self.repo.set_document(docDict['gitpubID'], newdoc,
+                                  unresolvedRefs=unresolvedRefs, **docDict)
+            if d: # allow set_document() to update our document attrs
+                docDict.update(d)
             self.docmap[gitpubPath] = docDict
             
         for gitpubID in diff.deletedDocs: # remove deleted docs from remote repo
             self.repo.delete_document(gitpubID)
             self.docmap.delete_remote_mapping(gitpubID)
+        self.resolve_refs(self.docmap, unresolvedRefs)
+
+    def resolve_refs(self, docmap, unresolvedRefs):
+        'resend docs with unresolved refs, until they resolve'
+        while unresolvedRefs:
+            newUR = set()
+            for doc in unresolvedRefs:
+                docDict = docmap[doc.gitpubPath]
+                self.repo.set_document(docDict['gitpubID'], doc,
+                                       unresolvedRefs=newUR,
+                                       **clean_kwargs(docDict))
+            if len(newUR) >= len(unresolvedRefs):
+                print 'unable to resolve refs!', [doc.title for doc in newUR]
+                return
+            unresolvedRefs = newUR
 
     def fetch_setup(self):
         importDir = os.path.join(self.basepath, self.importDir % self.name)
@@ -249,30 +338,34 @@ class Remote(object):
             path = os.path.join(importDir, gitpubID + '.rst')
             gitpubPath = relpath(path, self.basepath)
         try:
-            rest, d = self.repo.get_document(gitpubID, **kwargs)
+            doc, d = self.repo.get_document(gitpubID, **kwargs)
         except StandardError:
             print >>sys.stderr, 'failed to get document %s.  Conversion error? Skipping' % gitpubID
             return None
         docDict = dict(gitpubPath=gitpubPath, gitpubID=gitpubID)
-        try: # compare hash codes if present
-            docDict['gitpubHash'] = d['gitpubHash'] 
-            i = rest.find('gitpubHash=')
-            if i >= 0: # make sure old hashcode doesn't sneak into ReST text
-                rest = rest[:i] + rest[i+11:]
-        except KeyError: # new content.  Save its hash value
-            docDict['gitpubHash'] = unicode_safe_hash(rest)
+        for k,v in d.items(): # copy relevant attributes from returned dict
+            if k.startswith('gitpub'):
+                docDict[k] = v
+        if 'gitpubHash' not in docDict:
+            docDict['gitpubHash'] = doc.get_hash()
         try:
             if docDict['gitpubHash'] == self.docmap.revDict[gitpubID]['gitpubHash']:
                 return None # matches existing content, no need to update
         except KeyError:
             pass
-        ifile = codecs.open(path, 'w', 'utf-8')
-        try:
-            ifile.write(rest)
-        finally:
-            ifile.close()
+        doc.set_path(self.basepath, gitpubPath)
+        doc.write()
         self.docmap[gitpubPath] = docDict
         return gitpubPath
+
+def clean_kwargs(kwargs):
+    'return copy of kwargs w/o gitpub* keys'
+    d = {}
+    for k,v in kwargs.items():
+        if not k.startswith('gitpub'):
+            d[str(k)] = v
+    return d
+    
 
 
 class TrackingBranch(object):
@@ -281,13 +374,14 @@ class TrackingBranch(object):
         '''create the branch if not present'''
         self.branchName = '/'.join(('gpremotes', name, branchName))
         self.localRepo = localRepo
-        if branchName not in localRepo.branches:
+        if self.branchName not in localRepo.branches:
             if autoCreate:
-                localRepo.branch(branchName) # create new branch
+                localRepo.branch(self.branchName) # create new branch
+                localRepo.checkout(self.branchName) # ready to work on this branch
             else:
                 raise ValueError('no such gitpublish remote branch in this repo!')
         elif doCheckout:
-            self.localRepo.checkout(self.branchName)
+            localRepo.checkout(self.branchName)
         self.remote = Remote(name, localRepo.basepath, **kwargs)
         if doFetch:
             self.fetch()
@@ -309,6 +403,7 @@ class TrackingBranch(object):
     def add(self, path, **docDict):
         'add a file to be staged for next commit'
         gitpubPath = relpath(path, self.localRepo.basepath)
+        self.localRepo.add(path)
         docmap = self.get_stage()
         docmap[gitpubPath] = docDict
 
@@ -336,7 +431,7 @@ class TrackingBranch(object):
         if fromStage and not hasattr(self, 'stage'):
             raise AttributeError('no changes to commit')
         if repoState is None:
-            repoState = localRepo.push_state()
+            repoState = self.localRepo.push_state()
             self.localRepo.checkout(self.branchName)
         if fromStage:
             self.remote.docmap = self.stage
@@ -351,8 +446,11 @@ class TrackingBranch(object):
     def fetch_latest(self):
         'fetch latest state from remote, and commit any changes in this branch'
         newdocs = self.remote.fetch_latest()
+        if len(newdocs) == 0:
+            return False
         for gitpubPath in newdocs:
             self.localRepo.add(os.path.join(self.localRepo.basepath, gitpubPath))
+        return True
 
     def fetch_doc_history(self, history_f):
         'commit each doc revision in temporal order'
@@ -362,6 +460,8 @@ class TrackingBranch(object):
             docHistory = history_f(gitpubID)
             for revID, d in docHistory.items():
                 l.append((d['timestamp'], gitpubID, revID, d))
+        if len(l) == 0:
+            return False
         l.sort() # sort in temporal order
         revCommits = {}
         for t, gitpubID, revID, d in l:
@@ -381,6 +481,7 @@ class TrackingBranch(object):
                 revCommits[gitpubPath] = {revID:commitID}
             d2['revCommit'] = revCommits[gitpubPath]
             self.remote.docmap[gitpubPath] = d2 # save updated metadata
+        return True
 
     def fetch(self):
         'fetch doc history (if repo supports this) or latest snapshot'
@@ -390,11 +491,12 @@ class TrackingBranch(object):
             history_f = self.remote.repo.get_document_history
             msg = 'updated doc mappings and revision history from fetch'
         except AttributeError:
-            self.fetch_latest()
+            doCommit = self.fetch_latest()
             msg = 'fetch from remote'
         else:
-            self.fetch_doc_history(history_f)
-        self.commit(msg, False, repoState, lastPush=True)
+            doCommit = self.fetch_doc_history(history_f)
+        if doCommit:
+            self.commit(msg, False, repoState, lastPush=True)
 
 
 try:
@@ -443,6 +545,8 @@ class GitRepo(object):
 
     def checkout(self, branchname):
         'git checkout <branchname>'
+        if branchname == self.list_branches()[0]:
+            return # already on this branch, no need to do anything
         run_subprocess(('git', 'checkout', branchname), 'git checkout error %d')
         self.branches = self.list_branches()
 
@@ -470,7 +574,9 @@ class GitRepo(object):
 
     def branch(self, branchname=None):
         'create new branch, or list existing branches, with current branch first'
-        if branchname:
+        if branchname == self.list_branches()[0]:
+            return # already on this branch, no need to do anything
+        elif branchname: # switch to specified branch
             run_subprocess(('git', 'branch', branchname), 'git branch error %d')
             self.branches.append(branchname)
         else: # get the current branch name

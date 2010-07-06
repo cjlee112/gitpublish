@@ -8,6 +8,9 @@ Gitwiki Functions
 .. moduleauthor:: Christopher Lee <leec@chem.ucla.edu>
 .. sectionauthor:: Christopher Lee <leec@chem.ucla.edu>
 
+**This info is pretty obsolete**: 
+for a better intro, see `this tutorial <tutorials/intro.html>`_
+
 This module supplies convenience functions for importing from 
 MoinMoin, OPML, some simple text formats, etc., and for exporting to
 HTML, Latex, and WordPress.
