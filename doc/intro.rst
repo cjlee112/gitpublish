@@ -52,11 +52,11 @@ Ownership means *control*: the ability to do what you want with content
 that you've written.  If you can't re-use your content for many different
 purposes easily, you don't really have that control.  If your content is
 trapped in unwieldy, closed formats such as Microsoft Word, can you
-truly say that you *own* your own words?  In working with Gitwiki,
+truly say that you *own* your own words?  In working with Gitpublish,
 I am moving my content to the following open formats that it can work
 with easily in a variety of ways (see :doc:`basic`):
 
-* *Word processing / text formats*: convert to restructured text.  Gitwiki
+* *Word processing / text formats*: convert to restructured text.  Gitpublish
   provides some very basic tools for that, but this is sure to be a growing
   category over time.
 
@@ -66,7 +66,7 @@ with easily in a variety of ways (see :doc:`basic`):
   directly using its ``csv-table`` directive.
 
 * *Outlines*: convert to OPML, a standard XML format for outlines.
-  Gitwiki can automatically generate restructured text from OPML,
+  Gitpublish can automatically generate restructured text from OPML,
   so you can keep your outlines in OPML, which "plays nice" with Git.
 
 Try Gitpublish Yourself
@@ -84,12 +84,12 @@ Or better yet, create your own fork of Gitpublish on Github.  Go to
 Then clone it to your local computer via::
 
    git clone git@github.com:username/gitpublish.git
-   cd Gitwiki
+   cd Gitpublish
    git remote add upstream git://github.com/cjlee112/gitpublish.git
 
 where *username* should be your Github user name.
 
-You can then, edit, commit, and branch Gitwiki to your heart's content.
+You can then, edit, commit, and branch Gitpublish to your heart's content.
 The wiki documents are in the ``doc`` directory, and the source code
 in the ``gitpublish`` directory.
 
@@ -100,7 +100,7 @@ to your public Github repository::
 
 (if you want to push a branch other than *master* substitute its name here).
 Send me a pull request via Github if you want me to merge some of your changes
-to my "master" version of Gitwiki.  Your changes will show up in the "master"
+to my "master" version of Gitpublish.  Your changes will show up in the "master"
 version stamped with your authorship and history information; any copy 
 of the repository then shows the complete history of everyone who contributed
 to it!
