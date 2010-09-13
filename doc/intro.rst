@@ -3,23 +3,116 @@
 Gitpublish: Using Git and Restructured Text as a Publishing System
 ==================================================================
 
+Goals
+-----
+
+I want the freedom to use the best tool for each distinct function
+in the publishing process, and have them work together easily:
+
+* **open, standard formats** that can be edited and viewed using many
+  excellent tools;
+
+* **collaboration tools** and **version control** using the fantastic
+  capabilities of **git** and similar software.
+
+* **easily publish** the same content **to any open, standard 
+  publishing platform** like WordPress, LaTex, Sphinx etc.,
+  or to different publishing / sharing services like Google Docs.
+
+* **work across different devices with easy synchronization**
+  so you can edit & view documents on computers, smartphone,
+  iPad etc. and immediately synchronize your work across your
+  different devices -- without having to hand your documents
+  to some third-party.
+
+* support essential capabilities like **equations**, **bibliographic
+  databases**, inter-document and external links, across platforms.
+
+Ownership means *control*: the ability to do whatever you want with
+your work.  I don't want to be trapped in one particular format or
+platform that claims to solve all problems.  I've experienced enough
+of that (e.g. Microsoft Office) and can already say that based
+on my experience with Gitpublish and associated open tools, I'll
+never go back.  I can get what I want done so much more easily,
+and the results look and work far better.  Can *you* publish straight
+from MS Word to WordPress?  Gitpublish can do it with a single command.
+Can *you* edit and view a complex document with sophisticated
+equations and figures on your iPad, and from there
+publish that document both to a remote
+WordPress blog and to beautifully LaTex'd hardcopy?  This is
+easy to do within Gitpublish and the open source publishing ecosystem.
+
+What can Gitpublish do?
+-----------------------
+
+* write your content once, using standard, open formats like
+  reStructured Text, and whatever editing tools you want.
+
+* manage your document(s) history and collaborate with others on it
+  using the incredibly powerful, convenient capabilities of
+  git.
+
+* Add external publishing channels like WordPress as git "remote repositories"
+  that gitpublish can "push" your content to completely automatically --
+  including any necessary format transformations.
+
+This puts *you* in control of your publishing process.  Your collaborator
+wants a bunch of changes *after* you published "the final version"?
+No problem: pull his changes using git, merge into your publishing branch,
+and just re-push the new state of that branch to your remote publishing
+channel.  Gitpublish makes these external publishing channels act like
+"just another remote repository" that git can push to (and fetch from, 
+if the external channel supports that).
+
+Who is this good for?
+---------------------
+
+You might like Gitpublish if
+
+* you like open document formats such as reStructured Text or LaTex.
+
+* you're familiar with open-source tools such as git and Python.
+
+* you're looking for a way to view and edit documents with equations
+  on your iPad, iPhone or iPod Touch (I still haven't found a way
+  to install git or even mercurial on Android, grr).
+
+Warning: This is a very early developer-version with limited capabilities and
+testing, so only try it at your own risk.  Since Gitpublish mainly
+works by running git commands, it cannot corrupt your git repository,
+and every step of your work will be captured in the git commit history.
+So you are unlikely to lose data or work, I think.
+
+For a simple tutorial on using Gitpublish, take a look at :doc:`tutorials/intro`.
+
 Why use Git for publishing?
 ---------------------------
 
-Distributed version control systems like Git solve one of the basic 
+Git is the swiss army knife of content control.  It makes it trivial
+to work on the same content on a variety of different devices without
+every having to think about "wait, which device has the latest revision?"
+or "oops, I made different changes on different devices, how do I merge them?"
+Version history, backup, synchronization, merging -- those are Git's
+*trivial* capabilities.  Even if you're working completely by yourself,
+git is a life-changing tool that gives you amazing new ways to work
+(I could go on for hours about how often I use Git branching to keep
+multiple lines of development for trying out different ideas on
+the same project...).
+
+Moreover, distributed version control systems like Git solve one of the basic 
 problems of collaborating on text projects 
 -- how to let everyone have autonomy (i.e. edit their
 version of some content as they like), while sharing with others.
 Each user can have their own copy, edit it however they like,
 but then make their changes available to others, who can pull and merge
-those changes into their own repositories if they like.  All of this
+those changes into their own repositories *if* they like them.  All of this
 can flow naturally to one or more "master" public repositories which
 represent some group of people's best idea of what is true and valuable
 from everyone's contributions.  By using Git for this process we can
 take advantage of its automatic recording of the complete history of
 who contributed what, as well as its powerful tools for branching,
 merging, and collaborating across networks, and excellent
-community hosting services like Github.
+community hosting services like `Github <http://github.com>`_.
 
 
 Why use Restructured Text?
@@ -69,11 +162,13 @@ with easily in a variety of ways (see :doc:`basic`):
   Gitpublish can automatically generate restructured text from OPML,
   so you can keep your outlines in OPML, which "plays nice" with Git.
 
-Try Gitpublish Yourself
---------------------
+Getting Gitpublish
+------------------
 
-You obviously need git to use Gitpublish in any meaningful way.  You 
-can get it from [http://git-scm.com/].
+Gitpublish requires both `Python <http://python.org>`_ and 
+`git <http://git-scm.com/>`_.  You also need 
+`Docutils <http://docutils.sourceforge.net/>`_ and
+`Sphinx <http://sphinx.pocoo.org/>`_ is strongly recommended.
 
 You can either get a copy of Gitpublish directly::
 
@@ -120,23 +215,6 @@ For a graphical view of the latest changes and branches::
 For my Git cheatsheet with links to more info on Git, see
 [http://code.google.com/p/pygr/wiki/UsingGit].
 
-Generating HTML Output
-----------------------
-
-For generating HTML output you need several pieces of software installed:
-
-* Python
-
-* docutils
-
-* sphinx
-
-With these installed, generating HTML is as easy as::
-
-   cd doc
-   make html
-
-The HTML output will show up in ``doc/_build/html``.
 
 Importing Your Data
 -------------------
