@@ -39,7 +39,11 @@ class Document(object):
         self.rest = _read(codecs.open(self.path, 'r', 'utf-8'))
         xhtml = publish_string(self.rest, writer_name='xml')
         x = XML(xhtml) # parse the XML text
-        self.title = x.find('title').text #extract its title
+        t = x.find('title')
+        if t:
+            self.title = t.text #extract its title
+        else:
+            self.title = 'Untitled'
 
     def set_content_type(self, contentType=None, filename=None):
         'guess from filename if not provided by caller'
@@ -193,6 +197,14 @@ class DocMap(object):
     def __sub__(self, oldmap):
         'get analysis of doc differences vs. oldmap'
         return DocMapDiff(self, oldmap)
+
+    def update(self, basepath):
+        'update all gitpubHash values based on current file contents'
+        for gitpubPath,d in self.dict.items():
+            doc = Document(basepath, gitpubPath)
+            gitpubHash = doc.get_hash()
+            if gitpubHash != d.get('gitpubHash', ''):
+                d['gitpubHash'] = gitpubHash
 
 
 class DocMapDiff(object):
@@ -386,6 +398,16 @@ class TrackingBranch(object):
         if doFetch:
             self.fetch()
 
+    def merge(self, branchName='master', updateOnly=False):
+        'run git merge and then scan for docmap changes, and commit them'
+        self.localRepo.checkout(self.branchName)
+        if not updateOnly: # skip if user has already run git merge manually
+            self.localRepo.merge(branchName)
+        docmap = self.get_stage()
+        docmap.update(self.localRepo.basepath) # scan to see changed docs
+        self.commit('updated %s docmap from %s'
+                    % (self.branchName, branchName)) # commit new docmap
+
     def push(self, newmap=None):
         'push changes to remote and commit map changes'
         self.remote.push(newmap) # actually send the changes to the remote
@@ -549,6 +571,10 @@ class GitRepo(object):
             return # already on this branch, no need to do anything
         run_subprocess(('git', 'checkout', branchname), 'git checkout error %d')
         self.branches = self.list_branches()
+
+    def merge(self, branchName):
+        'git merge <branchName>'
+        run_subprocess(('git', 'merge', branchName), 'git merge error %d')
 
     def add(self, path):
         'git add <path>'
