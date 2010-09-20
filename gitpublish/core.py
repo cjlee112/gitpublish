@@ -200,12 +200,14 @@ class DocMap(object):
 
     def update(self, basepath):
         'update all gitpubHash values based on current file contents'
+        docChanged = False
         for gitpubPath,d in self.dict.items():
             doc = Document(basepath, gitpubPath)
             gitpubHash = doc.get_hash()
             if gitpubHash != d.get('gitpubHash', ''):
                 d['gitpubHash'] = gitpubHash
-
+                docChanged = True
+        return docChanged # report whether any doc got updated
 
 class DocMapDiff(object):
     '''Records the diff between two DocMap objects.
@@ -404,15 +406,18 @@ class TrackingBranch(object):
         if not updateOnly: # skip if user has already run git merge manually
             self.localRepo.merge(branchName)
         docmap = self.get_stage()
-        docmap.update(self.localRepo.basepath) # scan to see changed docs
-        self.commit('updated %s docmap from %s'
-                    % (self.branchName, branchName)) # commit new docmap
+        if docmap.update(self.localRepo.basepath): # scan to see changed docs
+            self.commit('updated %s docmap from %s'
+                        % (self.branchName, branchName)) # commit new docmap
+        else: # nothing staged, so clear the staging buffer
+            del self.stage
 
-    def push(self, newmap=None):
+    def push(self, branchName='master', updateOnly=False, newmap=None):
         'push changes to remote and commit map changes'
+        self.merge(branchName, updateOnly) # merge changes from branch
         self.remote.push(newmap) # actually send the changes to the remote
-        self.commit(message='publish doc changes to remote', fromStage=False,
-                    lastPush=True)
+        self.commit(message='publish doc changes to remote %s'
+                    % self.remote.name, fromStage=False, lastPush=True)
 
     def get_stage(self):
         'return temporary docmap where we can add changes before committing them'
