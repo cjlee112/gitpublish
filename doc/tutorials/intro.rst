@@ -119,5 +119,49 @@ files ``.gitpub/tab.json`` and ``.gitpub/tab.lastpush.json``.  Note
 that this implies that a ``push`` event always creates a commit
 (which records the change in mappings on the remote "repository").
 
+Working with an existing Gitpublish branch
+------------------------------------------
+
+Say I come back to my git repository in the future, after having
+made changes to ``index.rst`` on the ``master`` branch.  I want
+to use Gitpublish to push these changes automatically to my 
+WordPress blog.  Within my repository directory,
+I start a new Python session::
+
+   >>> from gitpublish import core
+   >>> tb = core.TrackingBranch('tab', doFetch=False)
+   >>> tb.push()
+   [gpremotes/tab/master 1c22589] updated gpremotes/tab/master docmap from master
+    1 files changed, 1 insertions(+), 1 deletions(-)
+   Enter password for leec on thinking.bioinformatics.ucla.edu:
+   [gpremotes/tab/master 59991bc] publish doc changes to remote
+    2 files changed, 3 insertions(+), 3 deletions(-)
+
+A few notes:
+
+* If the git repo already contains a Gitpublish remote branch,
+  all you have to give to :class:`core.TrackingBranch` is its
+  name (in this case, ``tab``).
+
+* Since we didn't specify a git repository, it assumes
+  you are somewhere inside a git repository, and searches upwards
+  from the current directory until it finds the top of the git
+  repository (i.e. a directory containing a ``.git`` directory).
+
+* The ``doFetch=False`` argument tells it that there is no need
+  to check the remote repository for updates at this time.
+
+* ``tb.push()`` does the equivalent of 
+  ``git push <remotename> <branchname>``: it pushes
+  the contents of the specified branch (which defaults to ``master``)
+  to the remote branch represented by the ``tb`` object.
+
+* This involves two steps: first it *merges* in changes from
+  the ``master`` branch into this tracking branch (as shown
+  by the first commit message above); second it transmits
+  the changed content to the remote, and updates its mapping files
+  to reflect those updates (as shown by the second commit message
+  above).
 
 
+  
