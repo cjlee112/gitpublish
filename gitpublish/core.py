@@ -383,10 +383,12 @@ def clean_kwargs(kwargs):
 
 
 class TrackingBranch(object):
-    def __init__(self, name, localRepo, branchName='master', doFetch=True,
+    def __init__(self, name, localRepo=None, branchName='master', doFetch=True,
                  autoCreate=False, doCheckout=False, **kwargs):
         '''create the branch if not present'''
         self.branchName = '/'.join(('gpremotes', name, branchName))
+        if localRepo is None:
+            localRepo = GitRepo() # search upwards for top of git repository
         self.localRepo = localRepo
         if self.branchName not in localRepo.branches:
             if autoCreate:
