@@ -560,13 +560,13 @@ class GitRepo(object):
     def __init__(self, basepath=None):
         'basepath should be top of the git repository, i.e. dir containing .git dir'
         if basepath is None:
-            l = os.path.split(os.getcwd())
-            for i in range(len(l), 0, -1):
-                if os.path.isdir(os.path.join(l[:i] + ['.git'])):
-                    basepath = os.path.join(l[:i])
-                    break
-            if basepath is None:
-                raise ValueError('not inside a git repository!')
+            basepath = os.getcwd() # search for .git repo containing cwd
+            while True:
+                if os.path.isdir(os.path.join(basepath, '.git')):
+                    break # basepath is top-level of git repo
+                basepath, tail = os.path.split(basepath) # move up one dir
+                if len(basepath) <= 1: # root directory
+                    raise ValueError('not inside a git repository!')
         self.basepath = basepath
         self.branches = self.list_branches()
 
