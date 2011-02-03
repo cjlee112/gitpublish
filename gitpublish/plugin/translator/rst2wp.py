@@ -32,6 +32,7 @@ from sphinx.ext.mathbase import MathDirective, math, eq_role, \
      displaymath
 from sphinx.util.compat import directive_dwim
 
+backslashString = '\\'
 
 class MathDirective2(MathDirective):
 	'removes one line from MathDirective that crashes'
@@ -40,7 +41,7 @@ class MathDirective2(MathDirective):
 		if self.arguments and self.arguments[0]:
 			latex = self.arguments[0] + '\n\n' + latex
 		node = displaymath()
-		node['latex'] = latex.replace('\\', '\\\\') # WP strips backslash
+		node['latex'] = latex.replace('\\', backslashString) # WP strips backslash
 		node['label'] = self.options.get('label', None)
 		node['nowrap'] = 'nowrap' in self.options
 		ret = [node]
@@ -52,7 +53,7 @@ class MathDirective2(MathDirective):
 
 
 def math_role(role, rawtext, text, lineno, inliner, options={}, content=[]):
-	latex = text.replace('\x00', '\\\\') # WP strips single backslash
+	latex = text.replace('\x00', backslashString) # WP strips single backslash
 	obj = math(latex=latex)
 	obj.document = inliner.document # docutils crashes w/o this
 	return [obj], []
