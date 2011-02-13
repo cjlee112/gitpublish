@@ -56,7 +56,11 @@ class Repo(object):
                        bits=xmlrpclib.Binary(doc.binaryData), overwrite=True)
         result = self.server.wp.uploadFile(self.blog_id, self.user, self.password,
                                            content)
-        gitpubRemotePath = '/' + '/'.join(result['url'].split('/')[3:])
+        urlSplit = result['url'].split('/')
+        if urlSplit[2] == self.host: # just save as local path
+            gitpubRemotePath = '/' + '/'.join(urlSplit[3:])
+        else: # not on the same host, so must save URL as absolute path
+            gitpubRemotePath = result['url']
         return dict(gitpubID='file:' + gitpubRemotePath,
                     gitpubRemotePath=gitpubRemotePath,
                     gitpubUnlisted=True) # WP only lists pages & posts, not files
