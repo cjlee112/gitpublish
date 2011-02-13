@@ -401,6 +401,8 @@ class TrackingBranch(object):
         self.remote = Remote(name, localRepo.basepath, **kwargs)
         if doFetch:
             self.fetch()
+        elif autoCreate:
+            self.commit('create new tracking branch', False, lastPush=True)
 
     def merge(self, branchName='master', updateOnly=False):
         'run git merge and then scan for docmap changes, and commit them'
