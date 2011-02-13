@@ -390,18 +390,20 @@ class TrackingBranch(object):
         if localRepo is None:
             localRepo = GitRepo() # search upwards for top of git repository
         self.localRepo = localRepo
+        doCommit = False
         if self.branchName not in localRepo.branches:
             if autoCreate:
                 localRepo.branch(self.branchName) # create new branch
                 localRepo.checkout(self.branchName) # ready to work on this branch
+                doCommit = True
             else:
                 raise ValueError('no such gitpublish remote branch in this repo!')
         elif doCheckout:
             localRepo.checkout(self.branchName)
         self.remote = Remote(name, localRepo.basepath, **kwargs)
-        if doFetch:
-            self.fetch()
-        elif autoCreate:
+        if doFetch and self.fetch():
+            doCommit = False # fetch already performed commit!
+        if doCommit: # need to commit auto-created mapping files
             self.commit('create new tracking branch', False, lastPush=True)
 
     def merge(self, branchName='master', updateOnly=False):
@@ -528,6 +530,7 @@ class TrackingBranch(object):
             doCommit = self.fetch_doc_history(history_f)
         if doCommit:
             self.commit(msg, False, repoState, lastPush=True)
+        return doCommit # report whether we performed a commit or not
 
 
 try:
