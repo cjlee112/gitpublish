@@ -383,7 +383,7 @@ def clean_kwargs(kwargs):
 
 
 class TrackingBranch(object):
-    def __init__(self, name, localRepo=None, branchName='master', doFetch=True,
+    def __init__(self, name, localRepo=None, branchName='master', doFetch=False,
                  autoCreate=False, doCheckout=False, **kwargs):
         '''create the branch if not present'''
         self.branchName = '/'.join(('gpremotes', name, branchName))
