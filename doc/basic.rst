@@ -1,7 +1,7 @@
 
-=================
-Gitwiki Functions
-=================
+====================
+Gitpublish Functions
+====================
 
 .. module:: basic
    :synopsis: Functions for importing and publishing text using Git

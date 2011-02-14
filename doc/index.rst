@@ -11,10 +11,10 @@ Contents:
 .. toctree::
    :maxdepth: 2
 
-   intro
-   design
    tutorials/intro
    tutorials/api
+   intro
+   design
 
 Indices and tables
 ==================
