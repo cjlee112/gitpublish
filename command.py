@@ -1,10 +1,10 @@
 import sys
 import optparse
 from gitpublish import core
-
-def option_parser():
-    parser = optparse.OptionParser()
-    return parser
+try:
+    import getpass
+except ImportError:
+    pass
 
 class Interface(object):
     '''provides a command line interface designed to be invoked separately
@@ -31,26 +31,52 @@ class Interface(object):
         return core.TrackingBranch(remoteName, self.localRepo, branchName,
                                    doFetch=False, doCheckout=doCheckout)
 
+    def remote_add(self, remoteName, remotePath, branchName=None,
+                   doFetch=False):
+        if branchName: # switch to specified branch for adding this remote
+            self.localRepo.branch(branchName)
+        else: # use current branch name
+            branchName = self.localRepo.branch()
+        l = remotePath.split(':') # parse type:path:arg1:arg2... format
+        remoteType = l[0]
+        s = l[1]
+        i = s.find('@') # parse user@host format
+        if i < 0:
+            host = s
+            user = getpass.getuser() # default username
+        else:
+            host = s[i + 1:]
+            user = s[:i]
+        repoArgs = dict(host=host, user=user)
+        for arg in l[2:]: # extract optional key=value arguments
+            i = arg.index('=')
+            repoArgs[arg[:i]] = arg[i + 1:]
+        tb = core.TrackingBranch(remoteName, self.localRepo, branchName,
+                                 doFetch=doFetch, autoCreate=True,
+                                 remoteType=remoteType, repoArgs=repoArgs)
+
     def checkout(self, remotename, branchName='master'):
         'checkout specified tracking branch'
         self.localRepo.checkout('/'.join(('gpremotes', remotename, branchName)))
 
-    def add(self, path, **docDict):
+    def add(self, paths, **docDict):
         'add file to mapping to be published on remote'
         tb = self.get_tracking_branch()
-        tb.add(path, **docDict)
+        for path in paths:
+            tb.add(path, **docDict)
         tb.save_stage()
 
-    def rm(self, path, **docDict):
+    def rm(self, paths):
         'remove file from mapping (to unpublish it on remote)'
         tb = self.get_tracking_branch()
-        tb.rm(path)
+        for path in paths:
+            tb.rm(path)
         tb.save_stage()
 
     def mv(self, oldpath, newpath):
         'move file locally, while continuing to publish it on remote'
         tb = self.get_tracking_branch()
-        tb.mv(path)
+        tb.mv(oldpath, newpath)
         tb.save_stage()
 
     def commit(self, message):
@@ -67,3 +93,54 @@ class Interface(object):
         'push mapped documents from this tracking branch to publish on remote'
         tb = self.get_tracking_branch(remoteName, branchName)
         tb.push()
+
+
+def get_options():
+    parser = optparse.OptionParser()
+    parser.add_option(
+        '-f', '--fetch', action="store_true", dest="doFetch", default=False,
+        help='fetch updates when creating new remote')
+    parser.add_option(
+        '-m', action="store", type="string",
+        dest="message", 
+        help="message to store for this commit")
+    parser.add_option(
+        '--docarg', action='append', dest='docargs', default=[],
+        help='''optional doc arguments for gitpub add:
+        pubtype="post|page" ... for wordpress, sets the publication type''')
+    return parser.parse_args()
+
+
+
+if __name__ == '__main__':
+    options, args = get_options()
+    cmd = args[0]
+    args = args[1:]
+    gp = Interface()
+    if cmd == 'remote':
+        if args[0] == 'add':
+            gp.remote_add(doFetch=options.doFetch, *args[1:])
+        else:
+            raise ValueError('gitpub remote so far only supports the add command')
+    elif cmd == 'checkout':
+        gp.checkout(*args)
+    elif cmd == 'add':
+        docDict = {}
+        for arg in options.docargs:
+            i = arg.index('=')
+            docDict[arg[:i]] = arg[i + 1:]
+        gp.add(args, **docDict)
+    elif cmd == 'rm':
+        gp.rm(args)
+    elif cmd == 'mv':
+        if len(args) != 2:
+            raise ValueError('usage: gitpub mv src dest')
+        gp.mv(*args)
+    elif cmd == 'commit':
+        gp.commit(options.message)
+    elif cmd == 'fetch':
+        gp.fetch(*args)
+    elif cmd == 'push':
+        gp.push(*args)
+    else:
+        raise ValueError('not a valid command: remote, checkout, add, rm, mv, commit, fetch, push')

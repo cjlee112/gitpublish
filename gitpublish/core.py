@@ -611,7 +611,7 @@ class GitRepo(object):
         return l[0].split()[1] # return our commit ID
 
     def branch(self, branchname=None):
-        'create new branch, or list existing branches, with current branch first'
+        'create new branch, or return current branch'
         if branchname == self.list_branches()[0]:
             return # already on this branch, no need to do anything
         elif branchname: # switch to specified branch
