@@ -1,7 +1,7 @@
 
-===============================================
-Using Gitpublish to publish to a WordPress Blog
-===============================================
+=========================================================
+Tutorial: Using Gitpublish to publish to a WordPress Blog
+=========================================================
 
 Creating a Git branch to manage your WordPress blog
 ---------------------------------------------------
@@ -76,8 +76,9 @@ A few notes:
 Adding new content to our blog via a gitpublish push
 ----------------------------------------------------
 
-Next, let's add a restructured text file as a new blog entry with
-an associated image file::
+Next, let's tell Gitpublish that we want to publish
+an existing restructured text file to our remote server,
+as a new blog entry with an associated image file::
 
   $ gitpub.py add index.rst summer_tanager_3_B.jpg
   $ gitpub.py commit -m 'added two files'
@@ -107,7 +108,13 @@ Finally we push our branch to the wordpress blog::
    2 files changed, 52 insertions(+), 5 deletions(-)
 
 * The initial "Already up-to-date" message simply means that 
-  all changes on your tracking branch are merged 
+  all changes on your local branch (``master``) are merged 
+  to this tracking branch (``gpremotes/ie/master``).
+
+* Each restructured text is automatically converted to the 
+  remote server's format (for WordPress, a form of HTML).
+
+* The files are uploaded automatically to the server.
 
 * Note that when gitpublish pushes to the remote server, it
   has to update its local mapping files to record information

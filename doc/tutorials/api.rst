@@ -1,7 +1,13 @@
 
-===============================================
-Using Gitpublish to publish to a WordPress Blog
-===============================================
+==============================
+Tutorial: using the Python API
+==============================
+
+This tutorial shows how to use the underlying Python API for Gitpublish.
+There is no need to do this unless you want to get inside the
+guts of Gitpublish (e.g. to extend or modify it).
+The tutorial shows how to use the Python API to do more or less
+the same basic operations as the shell command-line based tutorial.
 
 Creating a Git branch to manage your WordPress blog
 ---------------------------------------------------
