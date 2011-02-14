@@ -40,9 +40,9 @@ class Document(object):
         xhtml = publish_string(self.rest, writer_name='xml')
         x = XML(xhtml) # parse the XML text
         t = x.find('title')
-        if t:
+        try:
             self.title = t.text #extract its title
-        else:
+        except AttributeError:
             self.title = 'Untitled'
 
     def set_content_type(self, contentType=None, filename=None):
