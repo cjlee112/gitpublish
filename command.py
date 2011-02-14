@@ -31,6 +31,15 @@ class Interface(object):
         return core.TrackingBranch(remoteName, self.localRepo, branchName,
                                    doFetch=False, doCheckout=doCheckout)
 
+    def remote_list(self):
+        'get a list of gpremotes'
+        branches = [s for s in self.localRepo.list_branches() if
+                    s.startswith('gpremotes/')]
+        remotes = set()
+        for branch in branches:
+            remotes.add(branch.split('/')[1])
+        return tuple(remotes)
+
     def remote_add(self, remoteName, remotePath, branchName=None,
                    doFetch=False):
         if branchName: # switch to specified branch for adding this remote
@@ -118,7 +127,10 @@ if __name__ == '__main__':
     args = args[1:]
     gp = Interface()
     if cmd == 'remote':
-        if args[0] == 'add':
+        if len(args) == 0:
+            for remote in gp.remote_list():
+                print remote
+        elif args[0] == 'add':
             gp.remote_add(doFetch=options.doFetch, *args[1:])
         else:
             raise ValueError('gitpub remote so far only supports the add command')
