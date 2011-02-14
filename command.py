@@ -1,4 +1,5 @@
-import sys
+#!/usr/bin/env python
+
 import optparse
 from gitpublish import core
 try:
@@ -41,6 +42,7 @@ class Interface(object):
 
     def remote_add(self, remoteName, remotePath, branchName=None,
                    doFetch=False):
+        'add a new gpremote'
         if branchName: # switch to specified branch for adding this remote
             self.localRepo.branch(branchName)
         else: # use current branch name
