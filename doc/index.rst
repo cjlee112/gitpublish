@@ -14,6 +14,7 @@ Contents:
    intro
    design
    tutorials/intro
+   tutorials/api
 
 Indices and tables
 ==================
