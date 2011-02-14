@@ -111,6 +111,14 @@ def copy_kwargs(kwargs):
         d[str(k)] = v
     return d
 
+def save_json(path, d):
+    'save Python data to JSON file'
+    ifile = open(path, 'w')
+    try:
+        json.dump(d, ifile, sort_keys=True, indent=4)
+        print >>ifile # make sure file ends in newline
+    finally:
+        ifile.close()
 
 class DocMap(object):
     def __init__(self):
@@ -134,12 +142,7 @@ class DocMap(object):
         'save dict and revDict to our json file'
         d = dict(remoteType=remoteType, repoArgs=repoArgs, docDict=self.dict,
                  revDict=self.revDict)
-        ifile = open(path, 'w')
-        try:
-            json.dump(d, ifile, sort_keys=True, indent=4)
-            print >>ifile # make sure file ends in newline
-        finally:
-            ifile.close()
+        save_json(path, d)
 
     def copy(self):
         'return a copy of this docmap'
@@ -159,6 +162,9 @@ class DocMap(object):
             self.revDict[gitpubID] = d
         except KeyError:
             pass
+
+    def __contains__(self, gitpubPath):
+        return gitpubPath in self.dict
 
     def __getitem__(self, gitpubPath):
         'raises KeyError if not found'
@@ -212,9 +218,9 @@ class DocMap(object):
 class DocMapDiff(object):
     '''Records the diff between two DocMap objects.
     Sets 3 attributes:
-    newDocs: gitpubPath present newmap.dict but not oldmap.dict
-    changedDocs: gitpubPath present in newmap.dict but gitpubID or gitpubHash changed
-    (or missing) in oldmap.dict
+    newDocs: gitpubPath present in newmap.dict but neither it nor its
+             associated gitpubID present in oldmap.
+    changedDocs: gitpubHash changed (or missing) in oldmap.dict
     deletedDocs: gitpubID present in oldmap.revDict but not newmap.revDict'''
     def __init__(self, newmap, oldmap):
         self.newmap = newmap
@@ -222,19 +228,32 @@ class DocMapDiff(object):
         newDocs = []
         deletedDocs = []
         changedDocs = []
-        for k in newmap.dict:
-            if k not in oldmap.dict:
+        for k,docinfo in newmap.dict.items():
+            gitpubID = docinfo.get('gitpubID', None)
+            if not gitpubID: # never published before
                 newDocs.append(k)
-            else:
+            elif k in oldmap.dict:
+                if gitpubID != oldmap.dict[k]['gitpubID']:
+                    raise ValueError('gitpubID mismatch:%s != %s'
+                                     % (gitpubID, oldmap.dict[k]['gitpubID']))
                 try:
-                    if newmap.dict[k]['gitpubHash'] != oldmap.dict[k]['gitpubHash'] \
-                           or newmap.dict[k]['gitpubID'] != oldmap.dict[k]['gitpubID']:
+                    if docinfo['gitpubHash'] != oldmap.dict[k]['gitpubHash']:
                         raise KeyError
                 except KeyError:
                     changedDocs.append(k)
-        for k in oldmap.revDict:
-            if k not in newmap.revDict:
-                deletedDocs.append(k)
+            elif gitpubID in oldmap.revDict:
+                try:
+                    if docinfo['gitpubHash'] \
+                           != oldmap.revDict[gitpubID]['gitpubHash']:
+                        raise KeyError
+                except KeyError:
+                    changedDocs.append(k)
+            else:
+                raise ValueError('gitpubID missing from lastpush.json: ' +
+                                 gitpubID)
+        for gitpubID in oldmap.revDict:
+            if gitpubID not in newmap.revDict:
+                deletedDocs.append(gitpubID)
         self.newDocs = newDocs
         self.deletedDocs = deletedDocs
         self.changedDocs = changedDocs
@@ -411,8 +430,10 @@ class TrackingBranch(object):
         self.localRepo.checkout(self.branchName)
         if not updateOnly: # skip if user has already run git merge manually
             self.localRepo.merge(branchName)
+        mapChanged = self.merge_moves()
         docmap = self.get_stage()
-        if docmap.update(self.localRepo.basepath): # scan to see changed docs
+        mapChanged |= docmap.update(self.localRepo.basepath) # what changed?
+        if mapChanged: # need to commit updated doc map
             self.commit('updated %s docmap from %s'
                         % (self.branchName, branchName)) # commit new docmap
         else: # nothing staged, so clear the staging buffer
@@ -446,11 +467,47 @@ class TrackingBranch(object):
         docmap = self.get_stage()
         del docmap[gitpubPath]
 
-    def mv(self, oldpath, newpath):
+    def update_map_move(self, oldpath, newpath):
+        'update map to reflect changed path of a file'
         oldpath = relpath(oldpath, self.localRepo.basepath)
         newpath = relpath(newpath, self.localRepo.basepath)
+        if oldpath not in self.remote.docmap: # not published in our doc map
+            return False # so no need to modify the doc map
         docmap = self.get_stage()
         docmap.mv(oldpath, newpath)
+        return True # we altered the doc map
+
+    def merge_moves(self):
+        '''find file-moves present in _git_moves.json but not
+        in _git_moves_merged.json.  Then apply them to our docmap,
+        and add them to _git_moves_merged.json, commiting its changes
+        if any.'''
+        moves, path = self.localRepo.get_move_dict()
+        movesMerged, path = self.localRepo.\
+                            get_move_dict('_git_moves_merged.json')
+        changed = mapChanged = False
+        for oldpath, d in moves.items():
+            if len(d) > 1:
+                raise ValueError('same file moved more than once?!?')
+            commitID, newpath = d.items()[0]
+            try:
+                commits = movesMerged[oldpath]
+                if commits[commitID] != newpath:
+                    raise ValueError('move-merge mismatch: %s[%s]=%s != %s'
+                                     % (oldpath, commitID, newpath,
+                                        commits[commitID]))
+            except KeyError: # add this to movesMerged
+                mapChanged |= self.update_map_move(oldpath, newpath)
+                movesMerged.setdefault(oldpath, {})[commitID] = newpath
+                changed = True
+        if changed:
+            save_json(path, movesMerged)
+            self.localRepo.add(path)
+            self.localRepo.commit(message='updated _git_moves_merged.json')
+        return mapChanged
+
+    def mv(self, oldpath, newpath):
+        'just a wrapper: localRepo will save move info for later merging'
         self.localRepo.mv(oldpath, newpath)
 
     def save_stage(self):
@@ -598,8 +655,8 @@ class GitRepo(object):
         path = relpath(path) # relative to current directory
         run_subprocess(('git', 'rm', path), 'git rm error %d')
 
-    def mv(self, oldpath, newpath):
-        'git mv <oldpath> <newpath>'
+    def _mv(self, oldpath, newpath):
+        'internal interface to run git mv <oldpath> <newpath>'
         oldpath = relpath(oldpath) # relative to current directory
         newpath = relpath(newpath) # relative to current directory
         run_subprocess(('git', 'mv', oldpath, newpath), 'git mv error %d')
@@ -629,5 +686,49 @@ class GitRepo(object):
     def push_state(self):
         'get a state object representing current git repo state'
         return GitRepoState(self)
+
+    def get_last_commit_id(self):
+        'get ID of the most recent commit'
+        return Popen(['git', 'log', '--pretty=oneline', '-1'], stdout=PIPE).\
+            communicate()[0].split()[0]
+        
+    def get_move_dict(self, filename='_git_moves.json'):
+        'read moves-registry dict stored using JSON'
+        path = os.path.join(self.basepath, '.gitpub', filename)
+        try:
+            ifile = open(path)
+        except IOError:
+            d = {} # create empty move registry
+        else:
+            try:
+                d = json.load(ifile) # read the existing move-registry
+            finally:
+                ifile.close()
+        return d, path
+
+    def record_move(self, oldpath, newpath):
+        'record this file move for later merging to remote tracking branch'
+        d, path = self.get_move_dict()
+        oldpath = relpath(oldpath, self.basepath)
+        newpath = relpath(newpath, self.basepath)
+        lastCommit = self.get_last_commit_id()
+        d.setdefault(oldpath, {})[lastCommit] = newpath # add this move
+        dirpath = os.path.dirname(path)
+        if not os.path.isdir(dirpath): # create .gitpub directory if needed
+            os.mkdir(dirpath)
+        save_json(path, d)
+        return path
+
+    def mv(self, oldpath, newpath):
+        'perform move while recording info needed for merge to tracking branch'
+        if self.branch().startswith('gpremotes/'):
+            raise ValueError('''You should not run this command in a remote
+tracking branch (%s), but instead in your local
+branch (%s).  Then the gitpublish merge command will
+automatically merge these changes into your remote
+tracking branch.''')
+        path = self.record_move(oldpath, newpath) # record in move-registry
+        self.add(path) # add move-registry for next commit
+        self._mv(oldpath, newpath) # run git mv
     
 

@@ -21,13 +21,12 @@ class Interface(object):
         else:
             raise ValueError('not on a gitpublish remote branch!')
 
-    def get_tracking_branch(self, remoteName=None, branchName='master'):
+    def get_tracking_branch(self, remoteName=None, branchName='master',
+                            doCheckout = True):
         'get specified tracking branch, or current tracking branch'
         if remoteName is None:
             remoteName, branchName = self.on_remote_branch()
             doCheckout = False
-        else:
-            doCheckout = True
         return core.TrackingBranch(remoteName, self.localRepo, branchName,
                                    doFetch=False, doCheckout=doCheckout)
 
@@ -82,11 +81,10 @@ class Interface(object):
             tb.rm(path)
         tb.save_stage()
 
-    def mv(self, oldpath, newpath):
+    def mv(self, oldpaths, newpath):
         'move file locally, while continuing to publish it on remote'
-        tb = self.get_tracking_branch()
-        tb.mv(oldpath, newpath)
-        tb.save_stage()
+        for oldpath in oldpaths:
+            self.localRepo.mv(oldpath, newpath)
 
     def commit(self, message):
         'commit any mapping changes to *local* repository.  Does not push to remote!'
@@ -103,12 +101,25 @@ class Interface(object):
         tb = self.get_tracking_branch(remoteName, branchName)
         tb.push()
 
+    def merge(self, branchName=None, updateOnly=False):
+        'merge changes from this tracking branch'
+        tb = self.get_tracking_branch()
+        if not branchName:
+            branchName = tb.branchName.split('/')[-1]
+        tb.merge(branchName, updateOnly)
+
 
 def get_options():
     parser = optparse.OptionParser()
     parser.add_option(
         '-f', '--fetch', action="store_true", dest="doFetch", default=False,
         help='fetch updates when creating new remote')
+    parser.add_option(
+        '--update-only', action="store_true", dest="updateOnly", default=False,
+        help='''Force gitpublish merge to only perform doc map updates,
+i.e. skip its automatic merge step.  Only use this option if you
+manually merged in changes from your local branch to your
+gpremotes/ tracking branch, before running gitpublish merge.''')
     parser.add_option(
         '-m', action="store", type="string",
         dest="message", 
@@ -145,14 +156,16 @@ if __name__ == '__main__':
     elif cmd == 'rm':
         gp.rm(args)
     elif cmd == 'mv':
-        if len(args) != 2:
-            raise ValueError('usage: gitpub mv src dest')
-        gp.mv(*args)
+        gp.mv(args[:-1], args[-1])
     elif cmd == 'commit':
         gp.commit(options.message)
     elif cmd == 'fetch':
         gp.fetch(*args)
     elif cmd == 'push':
         gp.push(*args)
+    elif cmd == 'merge':
+        if len(args) > 1:
+            raise ValueError('usage: gitpublish merge [local-branch-name]')
+        gp.merge(updateOnly=options.updateOnly, *args)
     else:
-        raise ValueError('not a valid command: remote, checkout, add, rm, mv, commit, fetch, push')
+        raise ValueError('not a valid command: remote, checkout, add, rm, mv, commit, fetch, push, merge')
