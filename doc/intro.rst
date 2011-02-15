@@ -220,5 +220,5 @@ Importing Your Data
 -------------------
 
 Gitpublish provides some basic tools for importing a variety of data
-formats.  See :doc:`basic`.
+formats.  See :doc:`tools`.
 
