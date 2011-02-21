@@ -96,6 +96,7 @@ class WpHtmlTranslator(html4css1.HTMLTranslator):
 		self.section_level = 3
 		self.compact_simple = True
 		self.literal_block = False
+		self.skip_document_title = False
 
 
 	def visit_document(self, node):
@@ -149,13 +150,21 @@ class WpHtmlTranslator(html4css1.HTMLTranslator):
 		self.body.append('  ' + self.starttag(node, 'li', ''))
 
 	def visit_title(self, node):
+		if isinstance(node.parent, nodes.document): # doc title
+			self.skip_document_title = True
+			self.skip_document_start = len(self.body)
+			return # title passed as metadata, don't repeat it here
 		h_level = self.section_level + self.initial_header_level - 1
 		self.body.append(
 			self.starttag(node, 'h%s' % h_level, '', **{ }))
 		self.context.append('</h%s>\n\n' % (h_level, ))
 
 	def depart_title(self, node):
-		self.body.append(self.context.pop())
+		if self.skip_document_title:
+			del self.body[self.skip_document_start:]
+			self.skip_document_title = False
+		else:
+			self.body.append(self.context.pop())
 
 	def visit_literal_block(self, node):
 		self.literal_block = True
