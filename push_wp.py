@@ -5,7 +5,6 @@ import sys
 import optparse
 import getpass
 
-rst2wp.setup() # inform docutils about new directives
 
 def get_options():
     parser = optparse.OptionParser()
