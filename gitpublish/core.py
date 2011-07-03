@@ -37,7 +37,8 @@ class Document(object):
 
     def open_rest(self):
         self.rest = _read(codecs.open(self.path, 'r', 'utf-8'))
-        xhtml = publish_string(self.rest, writer_name='xml')
+        xhtml = publish_string(self.rest, writer_name='xml',
+                               settings_overrides=dict(report_level=5))
         x = XML(xhtml) # parse the XML text
         t = x.find('title')
         try:
