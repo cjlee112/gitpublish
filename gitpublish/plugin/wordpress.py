@@ -79,9 +79,11 @@ class Repo(object):
             result = self.server.wp.getPage(self.blog_id, pub_id, self.user,
                                             self.password)
             html = result['description']
+            title = result.get('title', 'Untitled')
         elif pubtype == 'post':
             result = self.server.metaWeblog.getPost(pub_id, self.user, self.password)
             html = result['description'] + result['mt_text_more']
+            title = result.get('post_title', 'Untitled')
             del result['mt_text_more']
         else:
             raise ValueError('no method to get pubtype: %s' % pubtype)
@@ -98,7 +100,7 @@ class Repo(object):
         parser.feed(html)
         parser.close()
         rest = buf.getvalue()
-        doc = core.Document(rest=rest)
+        doc = core.Document(rest=rest, title=title)
         result['gitpubRemotePath'] = '/?p=' + pub_id
         return doc, result
             
