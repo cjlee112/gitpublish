@@ -6,6 +6,7 @@ from subprocess import Popen, PIPE
 import codecs
 import sys
 import json
+from getpass import getpass
 
 
 def _read(ifile):

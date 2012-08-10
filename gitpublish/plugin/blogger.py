@@ -4,7 +4,6 @@ from translator import html2rest, rst2wp
 from StringIO import StringIO
 import os.path
 from gitpublish import core
-from getpass import getpass
 import gdata.blogger.client
 import gdata.blogger.data
 import atom.data
@@ -16,11 +15,11 @@ class Repo(core.RepoBase):
     'standard interface to a Blogger blog'
     def __init__(self, host, user, password=None, blog_id=0):
         'for blogger service, host arg is ignored'
-        RepoBase.__init__(self, host, user, password, blog_id)
+        core.RepoBase.__init__(self, host, user, password, blog_id)
         self.client = gdata.blogger.client.BloggerClient()
 
     def check_password(self, attr='password'):
-        RepoBase.check_password(self, attr)
+        core.RepoBase.check_password(self, attr)
         if attr == 'password' and not hasattr(self, 'logged_in'):
             self.client.client_login(
                 self.user, self.password,
