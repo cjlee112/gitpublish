@@ -1,6 +1,6 @@
 
 =========================================================
-Tutorial: Using Gitpublish to publish to a WordPress Blog
+Tutorial: Using Gitpublish to publish to a Blog
 =========================================================
 
 Creating a Git branch to manage your WordPress blog
@@ -72,6 +72,22 @@ A few notes:
 
 * Note that most of the messages above come from ``git``, not gitpublish
   itself.
+
+Creating a Git branch to manage your Blogger blog
+---------------------------------------------------
+
+The only difference vs. the instructions above is
+the format for specifying your Blogger blog (replace ``ie`` with
+whatever you want the gitpublish branch name for this blog to be)::
+
+  $ gitpub.py remote add ie blogger:blogger:user=your_email@gmail.com:blog_id=YOUR_BLOG_ID
+
+where you substitute your own gmail address and blog ID above.
+(You can get the blog ID by going to the Settings of your Blogger
+blog, and `looking at the URL <http://support.google.com/blogger/bin/answer.py?hl=en&answer=42191>`_ 
+that your browser displays).
+
+
 
 Adding new content to our blog via a gitpublish push
 ----------------------------------------------------
