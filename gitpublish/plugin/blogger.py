@@ -47,7 +47,7 @@ class Repo(core.RepoBase):
         except AttributeError:
             feeds = self.client.get_blogs()
             for blog in feeds.entry:
-                if blog.get_blog_id() == self.blog_id:
+                if blog.get_blog_id() == str(self.blog_id):
                     self.blog = blog
                     return blog
         raise ValueError('no blog matching blog_id??')
@@ -66,7 +66,7 @@ class Repo(core.RepoBase):
         post = self._find_post(post_id)
         post.title = atom.data.Title(title)
         post.content = atom.data.Content(content)
-        client.update(post)
+        return self.client.update(post)
 
     def get_post_list(self, maxposts=2000):
         'maxposts ignored currently...'
@@ -90,7 +90,7 @@ class Repo(core.RepoBase):
         page = self._find_page(page_id)
         page.title = atom.data.Title(title)
         page.content = atom.data.Content(content)
-        client.update(page)
+        return self.client.update(page)
         
     def delete_post(self, post_id):
         'delete specified post'

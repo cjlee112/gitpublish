@@ -70,15 +70,17 @@ class Writer(html4css1.Writer):
 
 	settings_spec = html4css1.Writer.settings_spec + ( )
 
-	def __init__(self, doc=None, unresolvedRefs=None):
+	def __init__(self, doc=None, unresolvedRefs=None, klass=None):
 		html4css1.Writer.__init__(self)
-		class MyWpHtmlTranslator(WpHtmlTranslator):
+		if klass is None:
+			klass = HtmlTranslatorBase
+		class MyWpHtmlTranslator(klass):
 			gitpubDoc = doc
 			gitpubUnresolvedRefs = unresolvedRefs
 		self.translator_class = MyWpHtmlTranslator
 
 
-class WpHtmlTranslator(html4css1.HTMLTranslator):
+class HtmlTranslatorBase(html4css1.HTMLTranslator):
 	"""An HTML emitting visitor.
 
 	Assumes your WP has support for jsMath."""
@@ -110,16 +112,6 @@ class WpHtmlTranslator(html4css1.HTMLTranslator):
 
 	def depart_section(self, node):
 		self.section_level -= 1
-
-	def visit_paragraph(self, node):
-		if self.should_be_compact_paragraph(node):
-			self.context.append('')
-		else:
-			self.body.append('')
-			self.context.append('\n\n')
-
-	def depart_paragraph(self, node):
-		self.body.append(self.context.pop())
 
 	def visit_reference(self, node):
 		attrs = { }
@@ -204,6 +196,15 @@ class WpHtmlTranslator(html4css1.HTMLTranslator):
 		except TypeError: # no docmap?
 			pass
 		html4css1.HTMLTranslator.visit_image(self, node)
+
+class WpHtmlTranslator(HtmlTranslatorBase):
+	'WP does not like <P>foo</P> ??'
+	def visit_paragraph(self, node):
+		if self.should_be_compact_paragraph(node):
+			self.context.append('')
+		else:
+			self.body.append('')
+			self.context.append('\n\n')
 
 		
 if __name__ == '__main__':

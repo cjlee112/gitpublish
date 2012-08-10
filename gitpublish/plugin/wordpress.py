@@ -162,7 +162,7 @@ class Repo(object):
     
 def convert_rest_to_wp(doc, unresolvedRefs=None):
     'convert ReST to WP html using docutils, rst2wp'
-    writer = rst2wp.Writer(doc, unresolvedRefs)
+    writer = rst2wp.Writer(doc, unresolvedRefs, rst2wp.WpHtmlTranslator)
     return publish_string(doc.rest, writer=writer, # convert to wordpress
                           settings_overrides=dict(report_level=5))
 
