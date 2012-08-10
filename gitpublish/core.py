@@ -16,7 +16,7 @@ def _read(ifile):
 
 class Document(object):
     def __init__(self, basepath=None, gitpubPath=None, rest=None, binaryData=None,
-                 docmap=None):
+                 docmap=None, title=None):
         if gitpubPath:
             self.set_path(basepath, gitpubPath)
             initDict = dict(rst=self.open_rest, jpg=self.open_image,
@@ -29,6 +29,8 @@ class Document(object):
         else:
             raise ValueError('Document called with no args!')
         self.docmap = docmap
+        if title:
+            self.title = title
 
     def set_path(self, basepath, gitpubPath):
         self.path = os.path.join(basepath, gitpubPath)
@@ -732,4 +734,136 @@ tracking branch.''')
         self.add(path) # add move-registry for next commit
         self._mv(oldpath, newpath) # run git mv
     
+
+class RepoBase(object):
+    '''Base class for plugin Repo classes, e.g. see plugins/blogger.py '''
+    def __init__(self, host, user, password=None, blog_id=0):
+        self.host = host
+        self.user = user
+        self.password = password
+        self.blog_id = int(blog_id)
+
+    def check_password(self, attr='password'):
+        'ask user for password if not already stored'
+        if getattr(self, attr, None) is None:
+            setattr(self, attr, getpass('Enter %s for %s on %s:' %
+                                        (attr, self.user, self.host)))
+
+    def new_document(self, doc, pubtype='post', publish=True, gitpubHash=None,
+                     unresolvedRefs=None, *args, **kwargs):
+        'post a restructured text file to wordpress as post or page'
+        self.check_password()
+        if hasattr(doc, 'rest'):
+            html = self.convert_rest(doc, unresolvedRefs)
+        else:
+            return self.upload_file(doc)
+        if gitpubHash: # insert our hash code as HTML comment
+            html += '\n<!-- gitpubHash=%s -->\n' % gitpubHash
+        d = dict(title=doc.title, description=html)
+        if pubtype == 'page':
+            gitpubID = 'page:' + str(self.new_page(doc.title, html, publish))
+        else:
+            gitpubID = 'post:' + str(self.new_post(doc.title, html, publish))
+        return dict(gitpubID=gitpubID, gitpubRemotePath='/?p=' + gitpubID[5:])
+
+    def upload_file(self, doc, doc_id=None):
+        'upload file to WP server for inclusion in documents'
+        if doc_id:
+            wpName = doc_id.split('/')[-1]
+            if wpName.startswith('wpid-'):
+                wpName = wpName[5:]
+        else:
+            wpName = os.path.basename(doc.gitpubPath)
+        content = dict(name=wpName, type=doc.contentType,
+                       bits=xmlrpclib.Binary(doc.binaryData), overwrite=True)
+        result = self.server.wp.uploadFile(self.blog_id, self.user, self.password,
+                                           content)
+        urlSplit = result['url'].split('/')
+        if urlSplit[2] == self.host: # just save as local path
+            gitpubRemotePath = '/' + '/'.join(urlSplit[3:])
+        else: # not on the same host, so must save URL as absolute path
+            gitpubRemotePath = result['url']
+        return dict(gitpubID='file:' + gitpubRemotePath,
+                    gitpubRemotePath=gitpubRemotePath,
+                    gitpubUnlisted=True) # WP only lists pages & posts, not files
+
+    def _get_pubtype_id(self, doc_id):
+        pubtype = doc_id.split(':')[0]
+        pub_id = doc_id[len(pubtype) + 1:]
+        return pubtype, pub_id
+
+    def get_document(self, doc_id):
+        'retrieve the specified post or page and convert to ReST'
+        self.check_password()
+        pubtype, pub_id = self._get_pubtype_id(doc_id)
+        if pubtype == 'page':
+            html, result = self.get_page(pub_id)
+        elif pubtype == 'post':
+            html, result = self.get_post(pub_id)
+        else:
+            raise ValueError('no method to get pubtype: %s' % pubtype)
+        try: # extract our hash code if present
+            i = html.index('gitpubHash=')
+            result['gitpubHash'] = html[i + 11:i + 100].split()[0]
+            j = html[i:].index('>')
+            html = html[:i-5] + html[i + j + 1:] # remove inserted comment
+        except ValueError:
+            pass
+        buf = StringIO()
+        parser = html2rest.Parser(buf)
+        parser.feed(html)
+        parser.close()
+        rest = buf.getvalue()
+        doc = core.Document(rest=rest, title=result.get('title', 'Untitled'))
+        result['gitpubRemotePath'] = '/?p=' + pub_id
+        return doc, result
+            
+    def set_document(self, doc_id, doc, publish=True, gitpubHash=None,
+                     unresolvedRefs=None, *args, **kwargs):
+        'post a restructured text file to wordpress as the specified doc_id'
+        self.check_password()
+        pubtype, pub_id = self._get_pubtype_id(doc_id)
+        if pubtype == 'file':
+            return self.upload_file(doc, doc_id)
+        html = self.convert_rest(doc, unresolvedRefs)
+        if gitpubHash: # insert our hash code as HTML comment
+            html += '\n<!-- gitpubHash=%s -->\n' % gitpubHash
+        d = dict(title=doc.title, description=html)
+        if pubtype == 'page':
+            v = self.update_page(pub_id, doc.title, html, publish)
+        elif pubtype == 'post':
+            v = self.update_post(pub_id, doc.title, html, publish)
+        else:
+            raise ValueError('unknown pubtype: %s' % pubtype)
+        if not v:
+            raise ValueError('xmlrpc server method failed: check your args')
+
+    def delete_document(self, doc_id, publish=True, *args, **kwargs):
+        'delete a post or page from the WP server'
+        self.check_password()
+        pubtype, pub_id = self._get_pubtype_id(doc_id)
+        if pubtype == 'page':
+            v = self.delete_page(pub_id)
+        elif pubtype == 'post':
+            v = self.delete_post(pub_id)
+        elif pubtype == 'file':
+            v = self.delete_file(doc_id)
+        else:
+            raise ValueError('unknown pubtype: %s' % pubtype)
+        if not v:
+            raise ValueError('xmlrpc server method failed: check your args')
+
+    def list_documents(self, maxposts=2000):
+        'get list of posts and pages from server, return as dictionary'
+        self.check_password()
+        d = {}
+        l = self.get_post_list(maxposts)
+        for kwargs in l:
+            d['post:' + str(kwargs['postid'])] = kwargs
+        l = self.get_page_list(maxposts)
+        for kwargs in l:
+            d['page:' + str(kwargs['page_id'])] = kwargs
+        return d
+
+
 
