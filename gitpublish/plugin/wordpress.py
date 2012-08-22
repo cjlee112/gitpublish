@@ -119,8 +119,14 @@ class Repo(object):
             v = self.server.wp.editPage(self.blog_id, pub_id,
                                         self.user, self.password, d, publish)
         elif pubtype == 'post':
-            v = self.server.metaWeblog.editPost(pub_id, self.user, self.password,
-                                                d, publish)
+            try:
+                v = self.server.metaWeblog.editPost(pub_id, self.user,
+                                                    self.password, d, publish)
+            except xmlrpclib.ResponseError:
+                v = self.server.wp.editPost(self.blog_id, self.user,
+                                            self.password, pub_id,
+                                            dict(post_title=doc.title,
+                                                 post_content=html))
         else:
             raise ValueError('unknown pubtype: %s' % pubtype)
         if not v:
