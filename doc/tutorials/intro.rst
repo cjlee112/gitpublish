@@ -113,6 +113,15 @@ This does several things:
   manage this information in the future.  Specifically, they are
   registered in the ``.gitpub/ie.json`` file mentioned above.
 
+* Note that by default restructuredText files are added
+  as *posts*, and image files as images to the WP media library
+  (which can be referenced by your posts / pages).
+  To add a document as a *page* instead of a post,
+  simply add the following ``--docarg``
+  command line option::
+
+    $ gitpub.py --docarg pubtype=page add mypage.rst
+
 Finally we push our branch to the wordpress blog::
 
   $ gitpub.py push
