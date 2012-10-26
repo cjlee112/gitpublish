@@ -1,6 +1,6 @@
 import xmlrpclib
 from docutils.core import publish_string
-from translator import html2rest, rst2wp
+from translator import html2rest, rst2blogger
 from StringIO import StringIO
 import os.path
 from gitpublish import core
@@ -8,7 +8,7 @@ import gdata.blogger.client
 import gdata.blogger.data
 import atom.data
 
-rst2wp.setup() # inform docutils of extra directives / roles
+rst2blogger.setup() # inform docutils of extra directives / roles
 
     
 class Repo(core.RepoBase):
@@ -115,8 +115,8 @@ class Repo(core.RepoBase):
         return html, dict(title=post.title.text)
         
     def convert_rest(self, doc, unresolvedRefs=None):
-        'convert ReST to WP html using docutils, rst2wp'
-        writer = rst2wp.Writer(doc, unresolvedRefs)
+        'convert ReST to Blogger html using docutils, rst2blogger'
+        writer = rst2blogger.Writer(doc, unresolvedRefs)
         return publish_string(doc.rest, writer=writer, # convert to wordpress
                               settings_overrides=dict(report_level=5))
 
