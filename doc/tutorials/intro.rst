@@ -11,8 +11,8 @@ that already has at least one commit in it (so it contains at least one
 valid branch).  Let's create a "remote tracking branch" off of our current
 branch (e.g. master) that will manage my WordPress blog.
 
-Starting in my git repo directory, I create a new remote tracking
-branch::
+Starting in my git repo directory, on my ``master`` branch,
+I create a new remote tracking branch::
 
   $ gitpub.py remote add ie wordpress:cjlee112@infoevolution.wordpress.com
   Switched to branch 'gpremotes/ie/master'
