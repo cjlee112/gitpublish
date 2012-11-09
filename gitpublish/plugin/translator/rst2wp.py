@@ -55,7 +55,7 @@ else: # define directives and roles for math support
 
 
 	def math_role(role, rawtext, text, lineno, inliner, options={}, content=[]):
-		latex = text.replace('\x00', backslashString) # WP strips single backslash
+		latex = text.replace('\x00', '\\') # WP strips single backslash
 		obj = math(latex=latex)
 		obj.document = inliner.document # docutils crashes w/o this
 		return [obj], []

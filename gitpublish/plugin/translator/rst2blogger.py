@@ -11,7 +11,7 @@ class Writer(rst2wp.Writer):
 		kwargs['klass'] = BloggerTranslator
 		rst2wp.Writer.__init__(self, *args, **kwargs)
 
-class BloggerTranslator(rst2wp.HTMLTranslatorBase):
+class BloggerTranslator(rst2wp.HtmlTranslatorBase):
 	def visit_math(self, node):
 		self.body.append(r'\(' + self.encode(node['latex'])
 				 + r'\)')
