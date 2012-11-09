@@ -4,6 +4,7 @@
 # to render in the web browser.
 # -- CJL
 import rst2wp
+from docutils import nodes
 
 class Writer(rst2wp.Writer):
 	'make the writer use our translator class'
