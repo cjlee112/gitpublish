@@ -16,8 +16,7 @@ in the publishing process, and have them work together easily:
   capabilities of **git** and similar software.
 
 * **easily publish** the same content **to any open, standard 
-  publishing platform** like WordPress, LaTex, Sphinx etc.,
-  or to different publishing / sharing services like Google Docs.
+  publishing platform** like WordPress, Blogger, LaTex, Sphinx etc.
 
 * **work across different devices with easy synchronization**
   so you can edit & view documents on computers, smartphone,
@@ -73,9 +72,8 @@ You might like Gitpublish if
 
 * you're familiar with open-source tools such as git and Python.
 
-* you're looking for a way to view and edit documents with equations
-  on your iPad, iPhone or iPod Touch (I still haven't found a way
-  to install git or even mercurial on Android, grr).
+* you would like to use such tools for posting content to
+  sites such as WordPress or Blogger.
 
 Warning: This is a very early developer-version with limited capabilities and
 testing, so only try it at your own risk.  Since Gitpublish mainly
@@ -131,10 +129,10 @@ advantages:
   using ``sphinx``.
 
 * it can work easily with equations via its support for Latex output
-  and jsMath for HTML.
+  and jsMath or MathJax for HTML.
 
 * it can be published easily either as stand-alone HTML or uploaded
-  automatically to software like WordPress.
+  automatically to software like WordPress or Blogger.
 
 * as a line-oriented format, it works beautifully with Git.
 
@@ -172,6 +170,9 @@ Gitpublish requires
 * `Docutils <http://docutils.sourceforge.net/>`_;
 
 Recommended but not required:
+
+* The `Google Data API python client library <http://code.google.com/p/gdata-python-client/>`_
+  is needed for working with Blogger.
 
 * `Sphinx <http://sphinx.pocoo.org/>`_ is needed for equation
   translation to jsmath or mathjax, either inline or displaymath::
