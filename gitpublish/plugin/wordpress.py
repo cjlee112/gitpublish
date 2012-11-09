@@ -1,174 +1,96 @@
 import xmlrpclib
 from docutils.core import publish_string
 from translator import html2rest, rst2wp
-from StringIO import StringIO
-import os.path
 from gitpublish import core
-from getpass import getpass
+import warnings
 
-class Repo(object):
+class Repo(core.RepoBase):
     def __init__(self, host, user, password=None, blog_id=0, path='/xmlrpc.php',
                  appkey=None):
+        core.RepoBase.__init__(self, host, user, password, blog_id)
         url = 'http://' + host + path
         self.server = xmlrpclib.ServerProxy(url)
-        self.host = host
-        self.user = user
-        self.password = password
-        self.blog_id = int(blog_id)
         self.path = path
         self.appkey = appkey
 
-    def check_password(self, attr='password'):
-        'ask user for password if not already stored'
-        if getattr(self, attr, None) is None:
-            setattr(self, attr, getpass('Enter %s for %s on %s:' %
-                                        (attr, self.user, self.host)))
+    def new_post(self, title, content, publish=True):
+        'create post with specified title and HTML content'
+        d = dict(title=title, description=content)
+        return self.server.metaWeblog.newPost(self.blog_id,
+                    self.user, self.password, d, publish)
 
-    def new_document(self, doc, pubtype='post', publish=True, gitpubHash=None,
-                     unresolvedRefs=None, *args, **kwargs):
-        'post a restructured text file to wordpress as post or page'
-        self.check_password()
-        if hasattr(doc, 'rest'):
-            html = convert_rest_to_wp(doc, unresolvedRefs)
-        else:
-            return self.upload_file(doc)
-        if gitpubHash: # insert our hash code as HTML comment
-            html += '\n<!-- gitpubHash=%s -->\n' % gitpubHash
-        d = dict(title=doc.title, description=html)
-        if pubtype == 'page':
-            gitpubID = 'page:' + str(self.server.wp.newPage(self.blog_id, self.user,
-                                                        self.password, d, publish))
-        else:
-            gitpubID = 'post:' + self.server.metaWeblog.newPost(self.blog_id,
-                                 self.user, self.password, d, publish)
-        return dict(gitpubID=gitpubID, gitpubRemotePath='/?p=' + gitpubID[5:])
+    def new_page(self, title, content, publish=True):
+        'create page with specified title and HTML content'
+        d = dict(title=title, description=content)
+        return self.server.wp.newPage(self.blog_id, self.user,
+                                      self.password, d, publish)
 
-    def upload_file(self, doc, doc_id=None):
-        'upload file to WP server for inclusion in documents'
-        if doc_id:
-            wpName = doc_id.split('/')[-1]
-            if wpName.startswith('wpid-'):
-                wpName = wpName[5:]
-        else:
-            wpName = os.path.basename(doc.gitpubPath)
-        content = dict(name=wpName, type=doc.contentType,
-                       bits=xmlrpclib.Binary(doc.binaryData), overwrite=True)
-        result = self.server.wp.uploadFile(self.blog_id, self.user, self.password,
-                                           content)
-        urlSplit = result['url'].split('/')
-        if urlSplit[2] == self.host: # just save as local path
-            gitpubRemotePath = '/' + '/'.join(urlSplit[3:])
-        else: # not on the same host, so must save URL as absolute path
-            gitpubRemotePath = result['url']
-        return dict(gitpubID='file:' + gitpubRemotePath,
-                    gitpubRemotePath=gitpubRemotePath,
-                    gitpubUnlisted=True) # WP only lists pages & posts, not files
-
-    def _get_pubtype_id(self, doc_id):
-        pubtype = doc_id.split(':')[0]
-        pub_id = doc_id[len(pubtype) + 1:]
-        return pubtype, pub_id
-
-    def get_document(self, doc_id):
-        'retrieve the specified post or page and convert to ReST'
-        self.check_password()
-        pubtype, pub_id = self._get_pubtype_id(doc_id)
-        if pubtype == 'page':
-            result = self.server.wp.getPage(self.blog_id, pub_id, self.user,
-                                            self.password)
-            html = result['description']
-            title = result.get('title', 'Untitled')
-        elif pubtype == 'post':
-            result = self.server.metaWeblog.getPost(pub_id, self.user, self.password)
-            html = result['description'] + result['mt_text_more']
-            title = result.get('post_title', 'Untitled')
-            del result['mt_text_more']
-        else:
-            raise ValueError('no method to get pubtype: %s' % pubtype)
+    def get_page(self, page_id):
+        'get HTML and attr dictionary for this page'
+        result = self.server.wp.getPage(self.blog_id, page_id, self.user,
+                                        self.password)
+        html = result['description']
         del result['description'] # don't duplicate the content
-        try: # extract our hash code if present
-            i = html.index('gitpubHash=')
-            result['gitpubHash'] = html[i + 11:i + 100].split()[0]
-            j = html[i:].index('>')
-            html = html[:i-5] + html[i + j + 1:] # remove inserted comment
-        except ValueError:
-            pass
-        buf = StringIO()
-        parser = html2rest.Parser(buf)
-        parser.feed(html)
-        parser.close()
-        rest = buf.getvalue()
-        doc = core.Document(rest=rest, title=title)
-        result['gitpubRemotePath'] = '/?p=' + pub_id
-        return doc, result
-            
-    def set_document(self, doc_id, doc, publish=True, gitpubHash=None,
-                     unresolvedRefs=None, *args, **kwargs):
-        'post a restructured text file to wordpress as the specified doc_id'
-        self.check_password()
-        pubtype, pub_id = self._get_pubtype_id(doc_id)
-        if pubtype == 'file':
-            return self.upload_file(doc, doc_id)
-        html = convert_rest_to_wp(doc, unresolvedRefs)
-        if gitpubHash: # insert our hash code as HTML comment
-            html += '\n<!-- gitpubHash=%s -->\n' % gitpubHash
-        d = dict(title=doc.title, description=html)
-        if pubtype == 'page':
-            v = self.server.wp.editPage(self.blog_id, pub_id,
-                                        self.user, self.password, d, publish)
-        elif pubtype == 'post':
-            try:
-                v = self.server.metaWeblog.editPost(pub_id, self.user,
-                                                    self.password, d, publish)
-            except xmlrpclib.ResponseError:
-                v = self.server.wp.editPost(self.blog_id, self.user,
-                                            self.password, pub_id,
-                                            dict(post_title=doc.title,
-                                                 post_content=html))
-        else:
-            raise ValueError('unknown pubtype: %s' % pubtype)
-        if not v:
-            raise ValueError('xmlrpc server method failed: check your args')
+        return html, result
 
-    def delete_document(self, doc_id, publish=True, *args, **kwargs):
-        'delete a post or page from the WP server'
-        self.check_password()
-        pubtype, pub_id = self._get_pubtype_id(doc_id)
-        if pubtype == 'page':
-            v = self.server.wp.deletePage(self.blog_id, self.user,
-                                          self.password, pub_id)
-        elif pubtype == 'post':
-            self.check_password('appkey') # does WP really require this?
-            v = self.server.blogger.deletePost(self.appkey, pub_id, self.user,
-                                               self.password, publish)
-        elif pubtype == 'file':
-            print 'wordpress lacks file deletion function... ignoring.'
-            return
-        else:
-            raise ValueError('unknown pubtype: %s' % pubtype)
-        if not v:
-            raise ValueError('xmlrpc server method failed: check your args')
-
-    def list_documents(self, maxposts=2000):
-        'get list of posts and pages from server, return as dictionary'
-        self.check_password()
-        d = {}
-        l = self.server.metaWeblog.getRecentPosts(self.blog_id, self.user,
-                                                  self.password, maxposts)
-        for kwargs in l:
-            d['post:' + str(kwargs['postid'])] = kwargs
-        l = self.server.wp.getPageList(self.blog_id, self.user, self.password)
-        for kwargs in l:
-            d['page:' + str(kwargs['page_id'])] = kwargs
-        return d
-
-        
+    def get_post(self, post_id):
+        'get HTML and attr dictionary for this post'
+        result = self.server.metaWeblog.getPost(pub_id, self.user,
+                                                self.password)
+        html = result['description'] + result['mt_text_more']
+        del result['description'] # don't duplicate the content
+        del result['mt_text_more']
+        return html, result
     
-def convert_rest_to_wp(doc, unresolvedRefs=None):
-    'convert ReST to WP html using docutils, rst2wp'
-    writer = rst2wp.Writer(doc, unresolvedRefs)
-    return publish_string(doc.rest, writer=writer, # convert to wordpress
-                          settings_overrides=dict(report_level=5))
+    def update_page(self, page_id, title, content, publish=True):
+        'update with new title and content'
+        d = dict(title=title, description=content)
+        return self.server.wp.editPage(self.blog_id, page_id, self.user,
+                                       self.password, d, publish)
+
+    def update_post(self, post_id, title, content, publish=True):
+        'update with new title and content'
+        d = dict(title=title, description=content)
+        try:
+            v = self.server.metaWeblog.editPost(post_id, self.user,
+                                                self.password, d, publish)
+        except xmlrpclib.ResponseError:
+            v = self.server.wp.editPost(self.blog_id, self.user,
+                                        self.password, post_id,
+                                        dict(post_title=title,
+                                             post_content=content))
+        return v
+    
+    def delete_page(self, page_id):
+        'delete specified page'
+        return self.server.wp.deletePage(self.blog_id, self.user,
+                                         self.password, page_id)
+
+    def delete_post(self, post_id, publish=True):
+        'delete specified post'
+        self.check_password('appkey') # does WP really require this?
+        return self.server.blogger.deletePost(self.appkey, post_id,
+                                              self.user, self.password,
+                                              publish)
+
+    def delete_file(self, doc_id):
+        warnings.warn('wordpress lacks file deletion function... ignoring.')
+        return True # don't treat as XMLRPC error
+
+    def get_post_list(self, maxposts=2000):
+        return self.server.metaWeblog.getRecentPosts(self.blog_id,
+                    self.user, self.password, maxposts)
+
+    def get_page_list(self, maxpages=2000):
+        'maxpages ignored currently...'
+        return self.server.wp.getPageList(self.blog_id, self.user,
+                                          self.password)
+    
+    def convert_rest(doc, unresolvedRefs=None):
+        'convert ReST to WP html using docutils, rst2wp'
+        writer = rst2wp.Writer(doc, unresolvedRefs)
+        return publish_string(doc.rest, writer=writer, # wordpress format
+                              settings_overrides=dict(report_level=5))
 
 
 
