@@ -361,50 +361,6 @@ class Parser(SGMLParser):
 
     def end_body(self):
         self.end_p()
-try:
-    from BeautifulSoup import BeautifulSoup, NavigableString
-
-    # don't seem to need this anymore - issue fixed in latest BeautifulSoup presumably
-    class ShlurpUpYourShloup(BeautifulSoup):
-        '''preserve whitespace in <pre>'''
-        def endData(self, containerClass=NavigableString):
-            if self.currentData:
-                currentData = ''.join(self.currentData)
-                if not currentData.strip():
-                    if '\n' in currentData:
-                        currentData = '\n'
-                    else:
-                        # just changed the following line
-                        # original: currentData = ' '
-                        currentData = u' ' * len(currentData)
-                self.currentData = []
-                if self.parseOnlyThese and len(self.tagStack) <= 1 and \
-                    (not self.parseOnlyThese.text or \
-                        not self.parseOnlyThese.search(currentData)):
-                    return
-                o = containerClass(currentData)
-                o.setup(self.currentTag, self.previous)
-                if self.previous:
-                    self.previous.next = o
-                self.previous = o
-                self.currentTag.contents.append(o)
-
-except ImportError:
-    def ShlurpUpYourShloup(text, *args, **kw):
-        return text
-
-    BeautifulSoup = ShlurpUpYourSoup
-
-def readsoup(fileobj, convert='html', encoding='utf8'):
-    if hasattr(fileobj, 'read'):
-        text = fileobj.read()
-    else:
-        text = open(fileobj, 'rb').read()
-    #for br in ['<br>', '<br/>', '<br />']:
-    #    text = text.replace(br, '\n')
-    #    text = text.replace(br.upper(), '\n')
-    return str(BeautifulSoup(text, convertEntities=convert,
-                                            fromEncoding=encoding))
 
 def html2rest(html, writer=sys.stdout):
     parser = Parser(writer)
@@ -426,7 +382,7 @@ if __name__ == '__main__':
         fileobj = sys.stdin
     if fileobj is not None:
         try:
-            html2rest(fileobj.read())#readsoup(fileobj))
+            html2rest(fileobj.read())
         finally:
             fileobj.close()
 
