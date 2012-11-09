@@ -1,8 +1,5 @@
-import xmlrpclib
 from docutils.core import publish_string
 from translator import html2rest, rst2blogger
-from StringIO import StringIO
-import os.path
 from gitpublish import core
 try:
     import gdata.blogger.client
