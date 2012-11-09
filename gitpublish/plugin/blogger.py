@@ -4,9 +4,13 @@ from translator import html2rest, rst2blogger
 from StringIO import StringIO
 import os.path
 from gitpublish import core
-import gdata.blogger.client
-import gdata.blogger.data
-import atom.data
+try:
+    import gdata.blogger.client
+    import gdata.blogger.data
+    import atom.data
+except ImportError:
+    raise ImportError('''blogger plugin requires gdata and atom packages
+    Please install them!''')
 
 rst2blogger.setup() # inform docutils of extra directives / roles
 
