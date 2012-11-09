@@ -196,7 +196,7 @@ Or better yet, create your own fork of Gitpublish on Github.  Go to
 Then clone it to your local computer via::
 
    git clone git@github.com:username/gitpublish.git
-   cd Gitpublish
+   cd gitpublish
    git remote add upstream git://github.com/cjlee112/gitpublish.git
 
 where *username* should be your Github user name.
