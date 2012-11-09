@@ -19,8 +19,6 @@
 # to WordPress, for rendering with jsMath: latex equations are
 # embedded either in <span> (inline) or <div> (displaymath) for jsMath
 # to render in the web browser.
-# What this mainly required was converting single backslash
-# to double backslash to correct for WP's stripping of single backslashes.
 # -- CJL
 import sys
 import docutils
@@ -28,56 +26,48 @@ from docutils.writers import html4css1
 from docutils import frontend, writers, nodes, utils
 from docutils.core import publish_cmdline, default_description
 from docutils.parsers.rst import directives, roles
-from sphinx.ext.mathbase import MathDirective, math, eq_role, \
-     displaymath
-from sphinx.util.compat import directive_dwim
 
-backslashString = '\\'
+try:
+	from sphinx.ext.mathbase import MathDirective, math, eq_role, \
+	     displaymath
+	from sphinx.util.compat import directive_dwim
+except ImportError:
+	import warnings
+	warnings.warn('Sphinx package not detected, so no support for equations!')
+else: # define directives and roles for math support
 
-class MathDirective2(MathDirective):
-	'removes one line from MathDirective that crashes'
-	def run(self):
-		latex = '\n'.join(self.content)
-		if self.arguments and self.arguments[0]:
-			latex = self.arguments[0] + '\n\n' + latex
-		node = displaymath()
-		node['latex'] = latex.replace('\\', backslashString) # WP strips backslash
-		node['label'] = self.options.get('label', None)
-		node['nowrap'] = 'nowrap' in self.options
-		ret = [node]
-		if node['label']:
-			tnode = nodes.target('', '', ids=['equation-' + node['label']])
-			self.state.document.note_explicit_target(tnode)
-			ret.insert(0, tnode)
-		return ret
+	class MathDirective2(MathDirective):
+		'removes one line from MathDirective that crashes'
+		def run(self):
+			latex = '\n'.join(self.content)
+			if self.arguments and self.arguments[0]:
+				latex = self.arguments[0] + '\n\n' + latex
+			node = displaymath()
+			node['latex'] = latex
+			node['label'] = self.options.get('label', None)
+			node['nowrap'] = 'nowrap' in self.options
+			ret = [node]
+			if node['label']:
+				tnode = nodes.target('', '', ids=['equation-' + node['label']])
+				self.state.document.note_explicit_target(tnode)
+				ret.insert(0, tnode)
+			return ret
 
 
-def math_role(role, rawtext, text, lineno, inliner, options={}, content=[]):
-	latex = text.replace('\x00', backslashString) # WP strips single backslash
-	obj = math(latex=latex)
-	obj.document = inliner.document # docutils crashes w/o this
-	return [obj], []
+	def math_role(role, rawtext, text, lineno, inliner, options={}, content=[]):
+		latex = text.replace('\x00', backslashString) # WP strips single backslash
+		obj = math(latex=latex)
+		obj.document = inliner.document # docutils crashes w/o this
+		return [obj], []
 
-def setup():
-	'add support for math to docutils'
-	nodes._add_node_class_names(['math', 'displaymath', 'eqref'])
-	roles.register_local_role('math', math_role)
-	roles.register_local_role('eq', eq_role)
-	directives.register_directive('math', directive_dwim(MathDirective2))
+	def setup():
+		'add support for math to docutils'
+		nodes._add_node_class_names(['math', 'displaymath', 'eqref'])
+		roles.register_local_role('math', math_role)
+		roles.register_local_role('eq', eq_role)
+		directives.register_directive('math', directive_dwim(MathDirective2))
 
-class Writer(html4css1.Writer):
-	supported = ('wphtml', )
-
-	settings_spec = html4css1.Writer.settings_spec + ( )
-
-	def __init__(self, doc=None, unresolvedRefs=None, klass=None):
-		html4css1.Writer.__init__(self)
-		if klass is None:
-			klass = HtmlTranslatorBase
-		class MyWpHtmlTranslator(klass):
-			gitpubDoc = doc
-			gitpubUnresolvedRefs = unresolvedRefs
-		self.translator_class = MyWpHtmlTranslator
+	setup() # run this once on import, to register our directives
 
 
 class HtmlTranslatorBase(html4css1.HTMLTranslator):
@@ -205,6 +195,22 @@ class WpHtmlTranslator(HtmlTranslatorBase):
 		else:
 			self.body.append('')
 			self.context.append('\n\n')
+
+
+class Writer(html4css1.Writer):
+	supported = ('wphtml', )
+
+	settings_spec = html4css1.Writer.settings_spec + ( )
+
+	def __init__(self, doc=None, unresolvedRefs=None,
+		     klass=WpHtmlTranslator):
+		html4css1.Writer.__init__(self)
+		class MyWpHtmlTranslator(klass):
+			gitpubDoc = doc
+			gitpubUnresolvedRefs = unresolvedRefs
+		self.translator_class = MyWpHtmlTranslator
+
+
 
 		
 if __name__ == '__main__':
