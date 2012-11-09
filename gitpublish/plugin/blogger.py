@@ -1,6 +1,7 @@
 from docutils.core import publish_string
 from translator import html2rest, rst2blogger
 from gitpublish import core
+import warnings
 try:
     import gdata.blogger.client
     import gdata.blogger.data
@@ -100,6 +101,10 @@ class Repo(core.RepoBase):
         page = self.get_page(page_id)
         self.client.delete(page)
 
+    def delete_file(self, doc_id):
+        warnings.warn('blogger lacks file deletion function... ignoring.')
+        return True # don't treat as XMLRPC error
+
     def get_page(self, page_id):
         'get HTML and attr dictionary for this page'
         page = self._find_page(page_id)
@@ -115,6 +120,6 @@ class Repo(core.RepoBase):
     def convert_rest(self, doc, unresolvedRefs=None):
         'convert ReST to Blogger html using docutils, rst2blogger'
         writer = rst2blogger.Writer(doc, unresolvedRefs)
-        return publish_string(doc.rest, writer=writer, # convert to wordpress
+        return publish_string(doc.rest, writer=writer, # blogger format
                               settings_overrides=dict(report_level=5))
 
