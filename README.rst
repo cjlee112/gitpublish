@@ -162,13 +162,29 @@ with easily in a variety of ways (see :doc:`basic`):
   Gitpublish can automatically generate restructured text from OPML,
   so you can keep your outlines in OPML, which "plays nice" with Git.
 
+Dependencies on Other Packages
+------------------------------
+
+Gitpublish requires
+
+* `Python <http://python.org>`_ ;
+* `git <http://git-scm.com/>`_;
+* `Docutils <http://docutils.sourceforge.net/>`_;
+
+Recommended but not required:
+
+* `Sphinx <http://sphinx.pocoo.org/>`_ is needed for equation
+  translation to jsmath or mathjax, either inline or displaymath::
+
+    such as an inline equation :math:`e^x`
+
+    or displaymath
+
+    .. math:: c^2=a^2+b^2
+
+
 Getting Gitpublish
 ------------------
-
-Gitpublish requires both `Python <http://python.org>`_ and 
-`git <http://git-scm.com/>`_.  You also need 
-`Docutils <http://docutils.sourceforge.net/>`_ and
-`Sphinx <http://sphinx.pocoo.org/>`_ is strongly recommended.
 
 You can either get a copy of Gitpublish directly::
 
