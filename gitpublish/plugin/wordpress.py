@@ -86,7 +86,7 @@ class Repo(core.RepoBase):
         return self.server.wp.getPageList(self.blog_id, self.user,
                                           self.password)
     
-    def convert_rest(doc, unresolvedRefs=None):
+    def convert_rest(self, doc, unresolvedRefs=None):
         'convert ReST to WP html using docutils, rst2wp'
         writer = rst2wp.Writer(doc, unresolvedRefs)
         return publish_string(doc.rest, writer=writer, # wordpress format
