@@ -6,8 +6,6 @@ import os.path
 from gitpublish import core
 from getpass import getpass
 
-rst2wp.setup() # inform docutils of extra directives / roles
-
 class Repo(object):
     def __init__(self, host, user, password=None, blog_id=0, path='/xmlrpc.php',
                  appkey=None):

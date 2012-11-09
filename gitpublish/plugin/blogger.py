@@ -12,9 +12,6 @@ except ImportError:
     raise ImportError('''blogger plugin requires gdata and atom packages
     Please install them!''')
 
-rst2blogger.setup() # inform docutils of extra directives / roles
-
-    
 class Repo(core.RepoBase):
     'standard interface to a Blogger blog'
     def __init__(self, host, user, password=None, blog_id=0):
